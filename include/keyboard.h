@@ -5,6 +5,8 @@
  *      Author: zhengxiaolin
  */
 
+#include <VGA.h>
+
 #ifndef KEYBOARD_KEYBOARD_H_
 #define KEYBOARD_KEYBOARD_H_
 
@@ -35,17 +37,19 @@ static uint8_t keyboard_shift[0xFF] = {
 };
 
 //双键位的后一个键位：
-#define		PRESS_UP		0x48
-#define		PRESS_LF		0x4B
-#define		PRESS_RT		0x4D
-#define		PRESS_DN		0x50
+#define		PRESS_UP			0x48
+#define		PRESS_LF			0x4B
+#define		PRESS_RT			0x4D
+#define		PRESS_DN			0x50
 
-//按下shift的键位映射
-static uint8_t keyboard_shift[0xFF] = {0};
+#define		PRESS_CAPS_LOCK		0x3A
+#define		PRESS_LF_SHIFT		0x2A
+#define		PRESS_RT_SHIFT		0x36
 
-uint8_t letter_to_upper_case(uint8_t)	//适用于caps lock打开时，将小写转化为大写。
+
+uint8_t letter_to_upper_case(uint8_t c)	//适用于caps lock打开时，将小写转化为大写。
 {
-	return (uint8_t - 32);
+	return (c - 32);
 }
 
 void kbd_init()
@@ -57,13 +61,14 @@ uint8_t get_raw_msg()
 {
 	uint8_t data;
 	while((data = inb(0x60)) == 0);
+	putc('!');
 	return data;
 }
 
 uint8_t getchar()
 {
 	uint8_t c = get_raw_msg();
-
+	return c;
 }
 
 #endif /* KEYBOARD_KEYBOARD_H_ */

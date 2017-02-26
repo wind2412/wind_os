@@ -1,5 +1,5 @@
 GCC := i386-elf-gcc
-CFLAGS := -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -fno-stack-protector -fno-pic -O -nostdinc -I include
+CFLAGS := -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -fno-omit-frame-pointer -fno-stack-protector -fno-pic -O -nostdinc -I include
 # -fno-pic: 不生成pic代码。即不生成位置无关代码。position independent code. 详细请参阅CSAPP。必须固定生成在0x100000这种。。必须位置相关。
 # -static: 优先使用静态共享库。 ***.a
 # -fno-strict-aliasing 强制通知gcc：函数形参中的指针指向的可能是同一个位置。也就是去掉-O2参数的不安全优化。
@@ -61,8 +61,8 @@ qemu:
 	@qemu $(DIR_BIN)wind_os.img -parallel stdio  # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
 	
 debug:
-	@qemu -S -s -parallel stdio -hda bin/wind_os.img -serial null
-	@cgdb -d i386-elf-gdb -x $(DIR_BIN).gdbinit  # if -nx is not read any .gdbinit file, the -x will be read the .gdbinit file.
+	@qemu -S -s -hda $(DIR_BIN)wind_os.img & # mdzz!!!这里调了好长时间。。必须加上&表示后台运行才行！！究竟是什么原理。。。。不加，gdb会卡住。。。
+	@cgdb -d i386-elf-gdb -q -x $(DIR_BIN)gdbinit  # if -nx is not read any .gdbinit file, the -x will be read the .gdbinit file.
 
 .PHONY: clean
 
