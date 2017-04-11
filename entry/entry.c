@@ -6,6 +6,7 @@
  */
 #include <VGA.h>
 #include <keyboard.h>
+#include <stdio.h>
 
 void init()
 {
@@ -16,19 +17,16 @@ void init()
 	putc('l');
 	putc('o');
 	putc('\n');
-
-	printf("hahha%d %c %x %o %s\n", 3, 'm', 0x8c, 020, "hahaha");
-//	put_int(3214, 10);
-//	putc('\n');
-
-	uint8_t c = getchar();
-	putc(c);
-	c = getchar();
-	putc(c);
-	c = getchar();
-	putc(c);
-	c = getchar();
-	putc(c);
+	
+	//缺少scanf。中断完毕之后回来补。
+//	int stat = inb(0x64);
+//	while((stat & 0x1) == 0);
+//	putc(inb(0x60));
+//	putc(inb(0x60));
+//	putc(inb(0x60));
+//
+//	uint8_t c = getchar();
+//	putc(c);
 
 	while(1);
 }

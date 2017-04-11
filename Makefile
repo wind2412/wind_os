@@ -44,11 +44,10 @@ boot/bootmain.o : boot/bootmain.c
 	@$(GCC) $(CFLAGS) -c $< -o $@
 
 .c.o:
-	@$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
+	$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
 	
 .s.o:
 	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
-
 
 .S.o:
 	@$(GCC) $< -o $@              #raw relocatable object file (shan’t use ld.)

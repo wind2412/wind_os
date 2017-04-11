@@ -5,7 +5,7 @@
  *      Author: zhengxiaolin
  */
 
-#include <VGA.h>
+#include <stdio.h>
 
 #ifndef KEYBOARD_KEYBOARD_H_
 #define KEYBOARD_KEYBOARD_H_
