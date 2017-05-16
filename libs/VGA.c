@@ -8,17 +8,17 @@
 #include <VGA.h>
 
 //显存初始位置
-static uint16_t *VGA_START = (uint16_t *) 0xB8000;	//static变量和全局变量的【定义】要放在.c文件中。。。否则即使有宏，链接时有多个文件引用VGA.h，也会重定义多次。
+static u16 *VGA_START = (u16 *) 0xB8000;	//static变量和全局变量的【定义】要放在.c文件中。。。否则即使有宏，链接时有多个文件引用VGA.h，也会重定义多次。
 													//宏只是防止【本文件】中重复引用同一文件而设置的。
 
 //光标的当前横纵坐标(默认terminal长宽：80*25)
-static uint8_t cursor_x = 0;
-static uint8_t cursor_y = 0;
+static u8 cursor_x = 0;
+static u8 cursor_y = 0;
 
 
 void move_cursor()
 {
-	uint16_t cursor = cursor_y * 80 + cursor_x;
+	u16 cursor = cursor_y * 80 + cursor_x;
 
 	//两个内部端口号用来执行汇编in指令。索引到寄存器：通过0x3D4端口；设置寄存器的值：通过0x3D5端口。
 	outb(0x3D4, 14);					//通过0x3D4索引到第14个寄存器，以发送高八位。
@@ -28,11 +28,11 @@ void move_cursor()
 }
 
 //得到颜色和符号的mix (字符ascii是要大于‘ ’空格字符的可输出字符。此函数内部使用。)
-uint16_t char_mix(enum color back, enum color front, char c)
+u16 char_mix(enum color back, enum color front, char c)
 {
-	uint8_t back_color = (uint8_t) back;
-	uint8_t front_color = (uint8_t) front;
-	uint16_t mix = ((back_color << 4) | (front_color & 0xf));
+	u8 back_color = (u8) back;
+	u8 front_color = (u8) front;
+	u16 mix = ((back_color << 4) | (front_color & 0xf));
 	return ((mix << 8) | c);
 }
 
@@ -42,12 +42,12 @@ void scroll()
 	if (cursor_y < 25)
 		return;
 
-	for (uint8_t i = 1; i < 25; i++) {
-		for (uint8_t j = 0; j < 80; j++) {
+	for (u8 i = 1; i < 25; i++) {
+		for (u8 j = 0; j < 80; j++) {
 			VGA_START[(i - 1) * 80 + j] = VGA_START[i * 80 + j];
 		}
 	}
-	for (uint8_t i = 0; i < 80; i++) {
+	for (u8 i = 0; i < 80; i++) {
 		VGA_START[24 * 80 + i] = char_mix(black, white, ' ');
 	}
 }
@@ -80,7 +80,7 @@ void show_char(enum color back, enum color front, char c)
 
 void clear_screen()
 {
-	uint16_t c = char_mix(black, white, ' ');
+	u16 c = char_mix(black, white, ' ');
 	for (int i = 0; i < 25; i++) {
 		for (int j = 0; j < 80; j++) {
 			VGA_START[i * 80 + j] = c;

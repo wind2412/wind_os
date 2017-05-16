@@ -23,7 +23,7 @@ void put_raw_string(const char *c)
 	}
 }
 
-void put_int(uint32_t num, uint32_t base)
+void put_int(u32 num, u32 base)
 {
 	static const char *table = "0123456789abcdef";
 
@@ -82,13 +82,13 @@ void printf(const char *fmt, ...)
 			const char *arg = va_arg(ap, char *);
 			put_raw_string(arg);
 		}else if(*/*++*/ptr == 'd'){
-			uint32_t arg = va_arg(ap, uint32_t);
+			u32 arg = va_arg(ap, u32);
 			put_int(arg, 10);
 		}else if(*/*++*/ptr == 'x'){
-			uint32_t arg = va_arg(ap, uint32_t);
+			u32 arg = va_arg(ap, u32);
 			put_int(arg, 16);
 		}else if(*/*++*/ptr == 'o'){
-			uint32_t arg = va_arg(ap, uint32_t);
+			u32 arg = va_arg(ap, u32);
 			put_int(arg, 8);
 		}
 		ptr++;

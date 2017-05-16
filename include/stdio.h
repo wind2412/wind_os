@@ -11,7 +11,7 @@
 /**************  printf  ****************/
 void putc(char c);
 void put_raw_string(const char *c);
-void put_int(uint32_t num, uint32_t base);
+void put_int(u32 num, u32 base);
 void printf(const char *fmt, ...);
 
 /***************  scanf  ****************/

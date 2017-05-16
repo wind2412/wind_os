@@ -11,13 +11,13 @@
 
 #include <types.h>
 
-inline void outb(uint16_t port, uint8_t value) __attribute__((always_inline));
+inline void outb(u16 port, u8 value) __attribute__((always_inline));
 
-inline uint8_t inb(uint16_t port) __attribute__((always_inline));
+inline u8 inb(u16 port) __attribute__((always_inline));
 
-inline void insl(uint32_t port, void *addr, int cnt) __attribute__((always_inline));
+inline void insl(u32 port, void *addr, int cnt) __attribute__((always_inline));
 
-inline void outw(uint16_t port, uint16_t data) __attribute__((always_inline));
+inline void outw(u16 port, u16 data) __attribute__((always_inline));
 
 /*************************************************************************/
 
@@ -30,22 +30,22 @@ stosb(void *addr, int data, int cnt)
                "memory", "cc");
 }
 
-inline void outb(uint16_t port, uint8_t value)
+inline void outb(u16 port, u8 value)
 {
 	asm volatile("outb %1, %0"::"d"(port), "a"(value));
 }
 
 //...c的inline 竟然必须定义在同一个头文件中。。。否则error: inlining failed in call to always_inline 'inb': function body not available
 //从port端口中读取端口值，并写到eax中。
-inline uint8_t inb(uint16_t port)
+inline u8 inb(u16 port)
 {
-	uint8_t ret;
+	u8 ret;
 	asm volatile("inb %1, %0":"=a"(ret):"d"(port));
 	return ret;
 }
 
 inline void
-insl(uint32_t port, void *addr, int cnt)
+insl(u32 port, void *addr, int cnt)
 {
     asm volatile (
             "cld;"
@@ -56,7 +56,7 @@ insl(uint32_t port, void *addr, int cnt)
 }
 
 inline void
-outw(uint16_t port, uint16_t data)
+outw(u16 port, u16 data)
 {
     asm volatile ("outw %0, %1" :: "a" (data), "d" (port));
 }

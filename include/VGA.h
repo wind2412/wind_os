@@ -36,7 +36,7 @@ enum color
 void move_cursor();
 
 //得到颜色和符号的mix (字符ascii是要大于‘ ’空格字符的可输出字符。此函数内部使用。)
-uint16_t char_mix(enum color back, enum color front, char c);
+u16 char_mix(enum color back, enum color front, char c);
 
 //滚动屏幕一行
 void scroll();

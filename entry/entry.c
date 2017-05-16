@@ -7,6 +7,9 @@
 #include <VGA.h>
 #include <keyboard.h>
 #include <stdio.h>
+#include <pic.h>
+#include <idt.h>
+#include <gdt.h>
 
 void init()
 {
@@ -27,6 +30,11 @@ void init()
 //
 //	uint8_t c = getchar();
 //	putc(c);
+
+	gdt_init();
+	pic_init();
+	idt_init();
+
 
 	while(1);
 }
