@@ -35,6 +35,9 @@ void init()
 	pic_init();
 	idt_init();
 
+//	sti();
+
+//	asm volatile ("int $0x03");
 
 	while(1);
 }

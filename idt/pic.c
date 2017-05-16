@@ -28,10 +28,10 @@ void pic_init()
 	outb(0x21, 0x00);		//解除mask
 	outb(0xA1, 0x00);
 
-//	sti();
+//	sti();		//....不可以在这里打开中断。
 }
 
 void sti()
 {
-	asm volatile ("sti;");
+	asm volatile ("sti");
 }
