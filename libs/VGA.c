@@ -50,6 +50,8 @@ void scroll()
 	for (u8 i = 0; i < 80; i++) {
 		VGA_START[24 * 80 + i] = char_mix(black, white, ' ');
 	}
+
+	cursor_y = 24;		//别忘了更改光标的位置！！
 }
 
 //在屏幕显示字符。只要放到显存中就会自动显示。
