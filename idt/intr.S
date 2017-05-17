@@ -46,7 +46,7 @@ jmp my_push
 //.globl my_int_error_arg1
 intr_\@:			//使用GAS  \@:生成全局标签。\@是gas内部macro的数量。 详见:http://www.coranac.com/files/gba/re-ejected-gasref.pdf
 					//以及：https://sourceware.org/binutils/docs/as/Macro.html#Macro
-pushl $\arg1
+pushl $\arg1		//千！！万！！别！！忘！！了！！加！！上！！$！！否则会反汇编为pushl 0x1，乍一看好像没问题...但是gas会把0x1地址的东西压进去，神坑啊！！
 jmp my_push
 .endm
 
