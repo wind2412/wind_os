@@ -47,10 +47,10 @@ boot/bootmain.o : boot/bootmain.c
 	$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
 	
 .s.o:
-	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
+	$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
 
 .S.o:
-	@$(GCC) $< -o $@              #raw relocatable object file (shan’t use ld.)
+	$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
 
 bin/wind_os_kern: $(filter-out $(BOOT_EXCEPT), $(C_OBJ) $(S_OBJ))
 	$(LD) $(LDFLAGS) -o $@  $^

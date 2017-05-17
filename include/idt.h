@@ -111,32 +111,11 @@ void set_intr_gate_desc(u32 interrupt, u32 offset, u16 selector, u8 gate_sign, u
 
 //由于这里我使用了call，所以call跳过去之后会先隐式push进去esp和ebp。所以在struct idtframe会有两个32位值的多余。。所以一定会出错。
 //解决方法：在gcc内联汇编里边加上了个my_push:标签。然后直接jmp到那边。
-#define ISR_BEGIN_NOERROR(NUM)\
-void isr_begin_no_error_##NUM()\
-{						\
-	asm volatile (		\
-		"pushl $0x00;"	\
-		"pushl %0;"			\
-		"jmp my_push;"	\
-		::"r"(NUM)			\
-	);						\
-}
-
-#define ISR_BEGIN_ERROR(NUM)\
-void isr_begin_error_##NUM()\
-{							\
-	asm volatile (			\
-		"pushl %0;"			\
-		"jmp my_push;"	\
-		::"r"(NUM)			\
-	);						\
-}
 
 /**
  * 此函数由ISR函数调用。
  * 在中断信号发出之后，（手动压入错误码errorCode）以及intr_No之后会执行。即把所有寄存器统统备份。
  */
-void isr_push();
 
 /**
  * ISR中间层
