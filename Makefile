@@ -44,13 +44,13 @@ boot/bootmain.o : boot/bootmain.c
 	@$(GCC) $(CFLAGS) -c $< -o $@
 
 .c.o:
-	$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
+	@$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
 	
 .s.o:
-	$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
+	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
 
 .S.o:
-	$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.) 提示链接的时候缺少crt0.o，是因为用i386-elf-gcc编译造成。改用i386-elf-as编译就好了。不清楚为什么。
+	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.) 提示链接的时候缺少crt0.o，是因为用i386-elf-gcc编译造成。改用i386-elf-as编译就好了。不清楚为什么。
 
 bin/wind_os_kern: $(filter-out $(BOOT_EXCEPT), $(C_OBJ) $(S_OBJ))
 	$(LD) $(LDFLAGS) -o $@  $^

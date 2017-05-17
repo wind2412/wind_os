@@ -5,6 +5,9 @@
  *      Author: zhengxiaolin
  */
 
+#ifndef INCLUDE_IDT_H_
+#define INCLUDE_IDT_H_
+
 #include <types.h>
 
 #define IGD	0x1		//中断门描述符的话
@@ -132,3 +135,5 @@ void isr_handler(struct idtframe *);
  */
 void set_handler(int, void (*)(struct idtframe *));
 
+
+#endif

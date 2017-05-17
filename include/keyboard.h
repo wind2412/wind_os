@@ -5,10 +5,14 @@
  *      Author: zhengxiaolin
  */
 
-#include <stdio.h>
 
 #ifndef KEYBOARD_KEYBOARD_H_
 #define KEYBOARD_KEYBOARD_H_
+
+#include <types.h>
+#include <idt.h>
+#include <x86.h>
+#include <stdio.h>
 
 #define 	NIL 		0
 
@@ -52,8 +56,14 @@ u8 letter_to_upper_case(u8 c)	//适用于caps lock打开时，将小写转化为
 	return (c - 32);
 }
 
+void kbd_handler(struct idtframe* frame)
+{
+	printf("interrupt %d has been called and I read %d\n", frame->intr_No, inb(0x60));
+}
+
 void kbd_init()
 {
+	set_handler(33, kbd_handler);
 	//留待设置键盘中断
 }
 

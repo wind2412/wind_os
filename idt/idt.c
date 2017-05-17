@@ -102,14 +102,16 @@
 //}
 
 void trap(struct idtframe *frame){
-	printf("interrupt ");	//这个trap只是调用真正的handler的中间层。
+//	printf("interrupt ");	//这个trap只是调用真正的handler的中间层。
 //	((void (*)(struct idtframe *))handlers[frame->intr_No])(frame);		//调用handler
 //	((void *)handlers[frame->intr_No](struct idtframe *))(frame);
 	handlers[frame->intr_No](frame);
 }
 
 void isr_handler(struct idtframe *frame){		//真·用户定义handler
-	printf("%d has been triggered!\n", frame->intr_No);
+	if(frame->intr_No != 32){	//时钟中断太烦人了......
+		printf("interrupt %d has been triggered!\n", frame->intr_No);
+	}
 }
 
 void set_handler(int intr_No, void (* handler)(struct idtframe *)){
