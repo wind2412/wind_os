@@ -68,7 +68,7 @@ ISR_BEGIN_NOERROR(48)
 void isr_push()
 {
 	asm volatile (
-			"pusha;"				//详见idtframe结构体的说明。
+			"my_push:pusha;"				//详见idtframe结构体的说明。
 			"movw %ds, %ax;"
 			"pushl %eax;"
 

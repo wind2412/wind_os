@@ -40,12 +40,16 @@ struct idtdesc idt[256];
 
 /**
  * idt帧。
+ *
+ * CPU自动由中断号*8作为OFFSET，由IDTR寄存器找到IDT表中中断的位置（自动）
+ * 之后又IDT表中的cs selector，外带GDTR，可以找到GDT表中存放ISR的段的位置。当然，其实正常来讲内核中断的设置都是0x08段，也就是内核代码段。
+ * 由IDT表中的OFFSET(与上文OFFSET不同)，可以找到ISR的位置。
+ *
  * 中断由 用户态 -> 内核态 之前，会先压入用户栈栈地址和栈指针值。（自动）
  * 之后要触发中断，cpu自动压入 用户态下的eflags, cs, eip来保护现场。（自动）
  * 而后，程序员设定中断的trigger，也就是ucore下的vector。这个trigger只是“中断信号”，只起到压入异常码errorCode和intr_no的作用。（手动）
  * 之后，对应于ucore的__alltraps，此时会程序员手动调用pushl压入各个基本寄存器。然后会压入各种段寄存器，ds,es,fs,gs,ss.但是由于他们全是一样的，因此压入一个my_ax就可以了。（手动）
  *
- * 隐藏步骤：最后会由于要获取到intr_No来取得索引(*8)。其实在C代码根本不需要乘。因为固定占8字节，只要号码就可以访问8字节一个的数组了。
  * 所以，这时候要push一个esp，也就是把当前esp push进去。因为这时esp指向结构体的头部，哈哈。太过机智了这个手段。于是执行call，这个方法需要有个参数struct idtframe *，需要通过push保存，正好也就是esp。
  *
  * 执行完了trigger，然后执行完call=>也就是执行完了isr的handler。这样的话，完事之后，就一定会回收原先的东西。也就是先popl my_ax，然后mov到各种寄存器ds,es,fs,gs,ss中。
@@ -54,7 +58,7 @@ struct idtdesc idt[256];
  * 最后，恢复ss和esp。
  */
 struct idtframe{
-	u32 my_ax;
+	u32 my_eax;
 
 	u32 edi;
 	u32 esi;
@@ -104,13 +108,16 @@ void set_intr_gate_desc(u32 interrupt, u32 offset, u16 selector, u8 gate_sign, u
  * 注意概念上的差异。ISR handler是“被ISR调用的，且可以由用户来指定的”。而ISR是放在IDT表中的。
  *
  */
+
+//由于这里我使用了call，所以call跳过去之后会先隐式push进去esp和ebp。所以在struct idtframe会有两个32位值的多余。。所以一定会出错。
+//解决方法：在gcc内联汇编里边加上了个my_push:标签。然后直接jmp到那边。
 #define ISR_BEGIN_NOERROR(NUM)\
 void isr_begin_no_error_##NUM()\
 {						\
 	asm volatile (		\
 		"pushl $0x00;"	\
 		"pushl %0;"			\
-		"call isr_push;"	\
+		"jmp my_push;"	\
 		::"r"(NUM)			\
 	);						\
 }
@@ -120,7 +127,7 @@ void isr_begin_error_##NUM()\
 {							\
 	asm volatile (			\
 		"pushl %0;"			\
-		"call isr_push;"	\
+		"jmp my_push;"	\
 		::"r"(NUM)			\
 	);						\
 }
