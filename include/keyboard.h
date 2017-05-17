@@ -51,34 +51,15 @@ static u8 keyboard_shift[0xFF] = {
 #define		PRESS_RT_SHIFT		0x36
 
 
-u8 letter_to_upper_case(u8 c)	//适用于caps lock打开时，将小写转化为大写。
-{
-	return (c - 32);
-}
+//适用于caps lock打开时，将小写转化为大写。
+u8 letter_to_upper_case(u8 c);
 
-void kbd_handler(struct idtframe* frame)
-{
-	printf("interrupt %d has been called and I read %d\n", frame->intr_No, inb(0x60));
-}
+void kbd_handler(struct idtframe* frame);
 
-void kbd_init()
-{
-	set_handler(33, kbd_handler);
-	//留待设置键盘中断
-}
+void kbd_init();
 
-u8 get_raw_msg()
-{
-	u8 data;
-	while((data = inb(0x60)) == 0);
-	putc('!');
-	return data;
-}
+u8 get_raw_msg();
 
-u8 getchar()
-{
-	u8 c = get_raw_msg();
-	return c;
-}
+u8 getchar();
 
 #endif /* KEYBOARD_KEYBOARD_H_ */

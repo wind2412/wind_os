@@ -28,7 +28,7 @@ void init()
 	idt_init();
 	pic_init();
 //	timer_intr_init();
-	kbd_init();
+	kbd_init();			//不知道为什么，没有绑定新的handler之前，老的handler无论按几次键盘都只输出一次......
 
 	//缺少scanf。中断完毕之后回来补。
 //	int stat = inb(0x64);
