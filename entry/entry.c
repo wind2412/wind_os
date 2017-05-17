@@ -32,11 +32,13 @@ void init()
 //	putc(c);
 
 	gdt_init();
-	pic_init();
 	idt_init();
+	pic_init();
+	timer_intr_init();
 
-//	sti();		//疑惑：不需要调用sti开中断吗？？？	莫非pic的mask全变成0相当于开了中断了吗？
+	sti();		//疑惑：不需要调用sti开中断吗？？？	莫非pic的mask全变成0相当于开了中断了吗？
 
+//	asm volatile ("cli");	//再使用cli就并不好使了？？	并不。这里是禁止了硬件中断。但是像是int 0x80这样的软中断还是可以使用的。
 	asm volatile ("int $0x03");
 	asm volatile ("int $0x04");
 
