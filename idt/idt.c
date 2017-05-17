@@ -137,7 +137,7 @@ void idt_init(){
 
 	//再设置所有的IDT
 	for(int i = 0; i < 49; i ++){
-		set_intr_gate_desc(0, (u32)&_intrs[i], 0x08, IGD, 0x00, 1);
+		set_intr_gate_desc(i, /*(u32)&_intrs[i]*/ _intrs[i], 0x08, IGD, 0x00, 1);	//由于汇编中，_intrs[i]内部本身就存放指针，因此不用再取指针了。
 	}
 
 	my_idtr.base = (u32)&idt;

@@ -1,6 +1,6 @@
 .text
 
-
+.globl my_push
 my_push:
 	pusha				//详见idtframe结构体的说明。
 	movw %ds, %ax
@@ -38,7 +38,7 @@ my_push:
 //.globl my_int_no_error_\arg1
 intr_\@:
 pushl $0
-pushl \arg1
+pushl $\arg1
 jmp my_push
 .endm
 
@@ -46,7 +46,7 @@ jmp my_push
 //.globl my_int_error_arg1
 intr_\@:			//使用GAS  \@:生成全局标签。\@是gas内部macro的数量。 详见:http://www.coranac.com/files/gba/re-ejected-gasref.pdf
 					//以及：https://sourceware.org/binutils/docs/as/Macro.html#Macro
-pushl \arg1
+pushl $\arg1
 jmp my_push
 .endm
 
