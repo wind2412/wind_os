@@ -35,9 +35,10 @@ void init()
 	pic_init();
 	idt_init();
 
-//	sti();
+//	sti();		//疑惑：不需要调用sti开中断吗？？？	莫非pic的mask全变成0相当于开了中断了吗？
 
 	asm volatile ("int $0x03");
+	asm volatile ("int $0x04");
 
 	while(1);
 }

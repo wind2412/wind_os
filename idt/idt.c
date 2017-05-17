@@ -9,7 +9,7 @@
 #include <stdio.h>
 
 /**
- * 以下是256个ISR
+ * 以下是256个ISR		错误的设计。因为这相当于函数，到时候会自动进行多余的push %esp操作......mdzz......
  */
 //ISR_BEGIN_NOERROR(0)
 //ISR_BEGIN_NOERROR(1)
