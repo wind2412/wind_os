@@ -37,10 +37,6 @@ struct idtr{
  */
 struct idtdesc idt[256];
 
-/**
- * ISR handlers			Interrupt service routine
- */
-u32 *handler[256];
 
 /**
  * idt帧。
@@ -63,14 +59,15 @@ struct idtframe{
 	u32 edi;
 	u32 esi;
 	u32 ebp;
-	u32 esp;
+	u32 no_use_esp;
 	u32 ebx;
 	u32 edx;
 	u32 ecx;
 	u32 eax;		//程序员调用pusha指令压入这8个。全以32bit形式压入。
 
 	u32 intr_No;		//程序员自行压入。
-	u32 errorCode;
+	u32 errorCode;				//注意这里！！！这里有玄机啊。errorCode这东西，是如果产生了的话，**CPU自动压入**。ISR[8-14]就产生错误码。如果产生错误，CPU会自动压进去。
+								//对于没有errorCode的剩余所有(其实可以自己制定), 程序员需要自行压入一个0来代替！～
 
 	u32 eip;
 	u32 cs;
@@ -78,6 +75,11 @@ struct idtframe{
 	u32 esp;		//用户esp 最先被压入
 	u32 ss;			//用户栈栈地址
 };
+
+/**
+ * ISR handlers			Interrupt service routine
+ */
+void (*handlers[256])(struct idtframe *);
 
 /**
  * 生成idt
@@ -93,3 +95,54 @@ void lidt(struct idtr *ptr);
  * 批量设置中断描述符表
  */
 void set_intr_gate_desc(u32 interrupt, u32 offset, u16 selector, u8 gate_sign, u8 dpl, u8 p);
+
+/**
+ * ISR函数。地址保存在IDT的offset中。ISR压入errorCode和intr_No，然后会调用寄存器存档函数isr_push，
+ * 然后isr_push会调用中间层的trap函数处理idtframe结构体（trap函数是中间层，使用统一接口来通过idtframe调用指定的handler）。trap会调用（用户）指定的isr_handler.
+ *
+ * 保存errorCode和intr_No. 实际上，中断描述符表中存放的offset指的是这个函数。也就是ISR。而不是ISR handler。
+ * 注意概念上的差异。ISR handler是“被ISR调用的，且可以由用户来指定的”。而ISR是放在IDT表中的。
+ *
+ */
+#define ISR_BEGIN_NOERROR(NUM)\
+void isr_begin_no_error_##NUM()\
+{						\
+	asm volatile (		\
+		"pushl $0x00;"	\
+		"pushl %0;"			\
+		"call isr_push;"	\
+		::"r"(NUM)			\
+	);						\
+}
+
+#define ISR_BEGIN_ERROR(NUM)\
+void isr_begin_error_##NUM()\
+{							\
+	asm volatile (			\
+		"pushl %0;"			\
+		"call isr_push;"	\
+		::"r"(NUM)			\
+	);						\
+}
+
+/**
+ * 此函数由ISR函数调用。
+ * 在中断信号发出之后，（手动压入错误码errorCode）以及intr_No之后会执行。即把所有寄存器统统备份。
+ */
+void isr_push();
+
+/**
+ * ISR中间层
+ */
+void trap(struct idtframe *);
+
+/**
+ * 伪handler
+ */
+void isr_handler(struct idtframe *);
+
+/**
+ * 用户设置handler的方法
+ */
+void set_handler(int, void (*)(struct idtframe *));
+

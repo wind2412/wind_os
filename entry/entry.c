@@ -37,7 +37,7 @@ void init()
 
 //	sti();
 
-//	asm volatile ("int $0x03");
+	asm volatile ("int $0x03");
 
 	while(1);
 }
