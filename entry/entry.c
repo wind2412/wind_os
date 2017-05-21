@@ -32,12 +32,12 @@ void init()
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......
 //	timer_intr_init();
-//	kbd_init();			//用户模式下有bug？？？？？？？？？？？
+	kbd_init();
 
 	switch_to_user_mode();
-//	switch_to_kern_mode();
+	switch_to_kern_mode();
 
-	asm volatile ("int $121;");
+//	asm volatile ("int $121;");
 
 	printf("hehe\n");
 
