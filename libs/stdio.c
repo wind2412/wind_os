@@ -36,6 +36,10 @@ void put_int(u32 num, u32 base)
 //		num /= base;
 //	}
 
+	if(num == 0){
+		buf[cnt++] = table[0];
+	}
+
 	while(num != 0){
 		bit = num % base;
 		buf[cnt++] = table[bit];

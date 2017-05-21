@@ -105,7 +105,29 @@ void trap(struct idtframe *frame){
 //	printf("interrupt ");	//这个trap只是调用真正的handler的中间层。
 //	((void (*)(struct idtframe *))handlers[frame->intr_No])(frame);		//调用handler
 //	((void *)handlers[frame->intr_No](struct idtframe *))(frame);
+	print_idtframe(frame);
 	handlers[frame->intr_No](frame);
+}
+
+void print_idtframe(struct idtframe *frame)
+{
+	printf("***************************\n");
+	printf("frame->my_eax: %x\n", frame->my_eax);
+	printf("frame->edi: %x\n", frame->edi);
+	printf("frame->esi: %x\n", frame->esi);
+	printf("frame->oesp: %x\n", frame->no_use_esp);
+	printf("frame->ebx: %x\n", frame->ebx);
+	printf("frame->edx: %x\n", frame->edx);
+	printf("frame->ecx: %x\n", frame->ecx);
+	printf("frame->eax: %x\n", frame->eax);
+	printf("frame->intr_No: %x\n", frame->intr_No);
+	printf("frame->errorCode: %x\n", frame->errorCode);
+	printf("frame->eip: %x\n", frame->eip);
+	printf("frame->cs: %x\n", frame->cs);
+	printf("frame->eflags: %x\n", frame->eflags);
+	printf("frame->esp: %x\n", frame->esp);
+	printf("frame->ss: %x\n", frame->ss);
+	printf("***************************\n");
 }
 
 void isr_handler(struct idtframe *frame){		//真·用户定义handler

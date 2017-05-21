@@ -10,8 +10,10 @@
 #include <pic.h>
 #include <idt.h>
 #include <gdt.h>
+#include <tss.h>
 #include <timer.h>
 #include <keyboard.h>
+
 
 void init()
 {
@@ -27,19 +29,16 @@ void init()
 	gdt_init();
 	idt_init();
 	pic_init();
+	tss_init();
+	outb(0x21, 0x01);		//关了时钟中断......
 //	timer_intr_init();
-	kbd_init();			//不知道为什么，没有绑定新的handler之前，老的handler无论按几次键盘都只输出一次......
+//	kbd_init();			//不知道为什么，没有绑定新的handler之前，老的handler无论按几次键盘都只输出一次......
 
-	//缺少scanf。中断完毕之后回来补。
-//	int stat = inb(0x64);
-//	printf("%d %c", stat, stat);
-//	while((stat & 0x1) == 0);
-//	putc(inb(0x60));
-//	putc(inb(0x60));
-//	putc(inb(0x60));
-//
-//	uint8_t c = getchar();
-//	putc(c);
+	switch_to_user_mode();
+
+//	asm volatile ("int $0x03;");
+
+	printf("haha\n");
 
 	while(1);
 }

@@ -135,5 +135,8 @@ void isr_handler(struct idtframe *);
  */
 void set_handler(int, void (*)(struct idtframe *));
 
-
+/**
+ * 打印idtframe
+ */
+void print_idtframe(struct idtframe *);
 #endif

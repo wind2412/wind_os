@@ -11,13 +11,14 @@ my_push:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
-	movw %ax, %ss
+//	movw %ax, %ss
 
 	pushl %esp
 
 	call trap
 
-	addl $0x04, %esp
+	popl %esp
+//	addl $0x04, %esp
 
 	popl %eax
 
@@ -25,7 +26,8 @@ my_push:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
-	movw %ax, %ss
+//	movw %ax, %ss			//这句话在switch_kern_to_user会出bug！！因为这句话表明了把eax付给了ss做恢复。表面上是这样，但是要知道在kern->user中，只能由iret切换ss栈位置！
+							//之前就切换一定是错的！会导致诡异的错误。会蹦出新的错误中断。而且实际上没有这句话，整个系统也是运行的。因此删掉。留着实在是不智之举。
 
 	popa
 
@@ -101,6 +103,214 @@ my_int_no_error 45
 my_int_no_error 46
 my_int_no_error 47
 my_int_no_error 48
+my_int_no_error 49
+my_int_no_error 50
+my_int_no_error 51
+my_int_no_error 52
+my_int_no_error 53
+my_int_no_error 54
+my_int_no_error 55
+my_int_no_error 56
+my_int_no_error 57
+my_int_no_error 58
+my_int_no_error 59
+my_int_no_error 60
+my_int_no_error 61
+my_int_no_error 62
+my_int_no_error 63
+my_int_no_error 64
+my_int_no_error 65
+my_int_no_error 66
+my_int_no_error 67
+my_int_no_error 68
+my_int_no_error 69
+my_int_no_error 70
+my_int_no_error 71
+my_int_no_error 72
+my_int_no_error 73
+my_int_no_error 74
+my_int_no_error 75
+my_int_no_error 76
+my_int_no_error 77
+my_int_no_error 78
+my_int_no_error 79
+my_int_no_error 80
+my_int_no_error 81
+my_int_no_error 82
+my_int_no_error 83
+my_int_no_error 84
+my_int_no_error 85
+my_int_no_error 86
+my_int_no_error 87
+my_int_no_error 88
+my_int_no_error 89
+my_int_no_error 90
+my_int_no_error 91
+my_int_no_error 92
+my_int_no_error 93
+my_int_no_error 94
+my_int_no_error 95
+my_int_no_error 96
+my_int_no_error 97
+my_int_no_error 98
+my_int_no_error 99
+my_int_no_error 100
+my_int_no_error 101
+my_int_no_error 102
+my_int_no_error 103
+my_int_no_error 104
+my_int_no_error 105
+my_int_no_error 106
+my_int_no_error 107
+my_int_no_error 108
+my_int_no_error 109
+my_int_no_error 110
+my_int_no_error 111
+my_int_no_error 112
+my_int_no_error 113
+my_int_no_error 114
+my_int_no_error 115
+my_int_no_error 116
+my_int_no_error 117
+my_int_no_error 118
+my_int_no_error 119
+my_int_no_error 120
+my_int_no_error 121
+my_int_no_error 122
+my_int_no_error 123
+my_int_no_error 124
+my_int_no_error 125
+my_int_no_error 126
+my_int_no_error 127
+my_int_no_error 128
+my_int_no_error 129
+my_int_no_error 130
+my_int_no_error 131
+my_int_no_error 132
+my_int_no_error 133
+my_int_no_error 134
+my_int_no_error 135
+my_int_no_error 136
+my_int_no_error 137
+my_int_no_error 138
+my_int_no_error 139
+my_int_no_error 140
+my_int_no_error 141
+my_int_no_error 142
+my_int_no_error 143
+my_int_no_error 144
+my_int_no_error 145
+my_int_no_error 146
+my_int_no_error 147
+my_int_no_error 148
+my_int_no_error 149
+my_int_no_error 150
+my_int_no_error 151
+my_int_no_error 152
+my_int_no_error 153
+my_int_no_error 154
+my_int_no_error 155
+my_int_no_error 156
+my_int_no_error 157
+my_int_no_error 158
+my_int_no_error 159
+my_int_no_error 160
+my_int_no_error 161
+my_int_no_error 162
+my_int_no_error 163
+my_int_no_error 164
+my_int_no_error 165
+my_int_no_error 166
+my_int_no_error 167
+my_int_no_error 168
+my_int_no_error 169
+my_int_no_error 170
+my_int_no_error 171
+my_int_no_error 172
+my_int_no_error 173
+my_int_no_error 174
+my_int_no_error 175
+my_int_no_error 176
+my_int_no_error 177
+my_int_no_error 178
+my_int_no_error 179
+my_int_no_error 180
+my_int_no_error 181
+my_int_no_error 182
+my_int_no_error 183
+my_int_no_error 184
+my_int_no_error 185
+my_int_no_error 186
+my_int_no_error 187
+my_int_no_error 188
+my_int_no_error 189
+my_int_no_error 190
+my_int_no_error 191
+my_int_no_error 192
+my_int_no_error 193
+my_int_no_error 194
+my_int_no_error 195
+my_int_no_error 196
+my_int_no_error 197
+my_int_no_error 198
+my_int_no_error 199
+my_int_no_error 200
+my_int_no_error 201
+my_int_no_error 202
+my_int_no_error 203
+my_int_no_error 204
+my_int_no_error 205
+my_int_no_error 206
+my_int_no_error 207
+my_int_no_error 208
+my_int_no_error 209
+my_int_no_error 210
+my_int_no_error 211
+my_int_no_error 212
+my_int_no_error 213
+my_int_no_error 214
+my_int_no_error 215
+my_int_no_error 216
+my_int_no_error 217
+my_int_no_error 218
+my_int_no_error 219
+my_int_no_error 220
+my_int_no_error 221
+my_int_no_error 222
+my_int_no_error 223
+my_int_no_error 224
+my_int_no_error 225
+my_int_no_error 226
+my_int_no_error 227
+my_int_no_error 228
+my_int_no_error 229
+my_int_no_error 230
+my_int_no_error 231
+my_int_no_error 232
+my_int_no_error 233
+my_int_no_error 234
+my_int_no_error 235
+my_int_no_error 236
+my_int_no_error 237
+my_int_no_error 238
+my_int_no_error 239
+my_int_no_error 240
+my_int_no_error 241
+my_int_no_error 242
+my_int_no_error 243
+my_int_no_error 244
+my_int_no_error 245
+my_int_no_error 246
+my_int_no_error 247
+my_int_no_error 248
+my_int_no_error 249
+my_int_no_error 250
+my_int_no_error 251
+my_int_no_error 252
+my_int_no_error 253
+my_int_no_error 254
+my_int_no_error 255
+
 
 .data
 .globl _intrs
@@ -156,3 +366,210 @@ _intrs:
 	.long intr_46
 	.long intr_47
 	.long intr_48
+	.long intr_49
+	.long intr_50
+	.long intr_51
+	.long intr_52
+	.long intr_53
+	.long intr_54
+	.long intr_55
+	.long intr_56
+	.long intr_57
+	.long intr_58
+	.long intr_59
+	.long intr_60
+	.long intr_61
+	.long intr_62
+	.long intr_63
+	.long intr_64
+	.long intr_65
+	.long intr_66
+	.long intr_67
+	.long intr_68
+	.long intr_69
+	.long intr_70
+	.long intr_71
+	.long intr_72
+	.long intr_73
+	.long intr_74
+	.long intr_75
+	.long intr_76
+	.long intr_77
+	.long intr_78
+	.long intr_79
+	.long intr_80
+	.long intr_81
+	.long intr_82
+	.long intr_83
+	.long intr_84
+	.long intr_85
+	.long intr_86
+	.long intr_87
+	.long intr_88
+	.long intr_89
+	.long intr_90
+	.long intr_91
+	.long intr_92
+	.long intr_93
+	.long intr_94
+	.long intr_95
+	.long intr_96
+	.long intr_97
+	.long intr_98
+	.long intr_99
+	.long intr_100
+	.long intr_101
+	.long intr_102
+	.long intr_103
+	.long intr_104
+	.long intr_105
+	.long intr_106
+	.long intr_107
+	.long intr_108
+	.long intr_109
+	.long intr_110
+	.long intr_111
+	.long intr_112
+	.long intr_113
+	.long intr_114
+	.long intr_115
+	.long intr_116
+	.long intr_117
+	.long intr_118
+	.long intr_119
+	.long intr_120
+	.long intr_121
+	.long intr_122
+	.long intr_123
+	.long intr_124
+	.long intr_125
+	.long intr_126
+	.long intr_127
+	.long intr_128
+	.long intr_129
+	.long intr_130
+	.long intr_131
+	.long intr_132
+	.long intr_133
+	.long intr_134
+	.long intr_135
+	.long intr_136
+	.long intr_137
+	.long intr_138
+	.long intr_139
+	.long intr_140
+	.long intr_141
+	.long intr_142
+	.long intr_143
+	.long intr_144
+	.long intr_145
+	.long intr_146
+	.long intr_147
+	.long intr_148
+	.long intr_149
+	.long intr_150
+	.long intr_151
+	.long intr_152
+	.long intr_153
+	.long intr_154
+	.long intr_155
+	.long intr_156
+	.long intr_157
+	.long intr_158
+	.long intr_159
+	.long intr_160
+	.long intr_161
+	.long intr_162
+	.long intr_163
+	.long intr_164
+	.long intr_165
+	.long intr_166
+	.long intr_167
+	.long intr_168
+	.long intr_169
+	.long intr_170
+	.long intr_171
+	.long intr_172
+	.long intr_173
+	.long intr_174
+	.long intr_175
+	.long intr_176
+	.long intr_177
+	.long intr_178
+	.long intr_179
+	.long intr_180
+	.long intr_181
+	.long intr_182
+	.long intr_183
+	.long intr_184
+	.long intr_185
+	.long intr_186
+	.long intr_187
+	.long intr_188
+	.long intr_189
+	.long intr_190
+	.long intr_191
+	.long intr_192
+	.long intr_193
+	.long intr_194
+	.long intr_195
+	.long intr_196
+	.long intr_197
+	.long intr_198
+	.long intr_199
+	.long intr_200
+	.long intr_201
+	.long intr_202
+	.long intr_203
+	.long intr_204
+	.long intr_205
+	.long intr_206
+	.long intr_207
+	.long intr_208
+	.long intr_209
+	.long intr_210
+	.long intr_211
+	.long intr_212
+	.long intr_213
+	.long intr_214
+	.long intr_215
+	.long intr_216
+	.long intr_217
+	.long intr_218
+	.long intr_219
+	.long intr_220
+	.long intr_221
+	.long intr_222
+	.long intr_223
+	.long intr_224
+	.long intr_225
+	.long intr_226
+	.long intr_227
+	.long intr_228
+	.long intr_229
+	.long intr_230
+	.long intr_231
+	.long intr_232
+	.long intr_233
+	.long intr_234
+	.long intr_235
+	.long intr_236
+	.long intr_237
+	.long intr_238
+	.long intr_239
+	.long intr_240
+	.long intr_241
+	.long intr_242
+	.long intr_243
+	.long intr_244
+	.long intr_245
+	.long intr_246
+	.long intr_247
+	.long intr_248
+	.long intr_249
+	.long intr_250
+	.long intr_251
+	.long intr_252
+	.long intr_253
+	.long intr_254
+	.long intr_255
