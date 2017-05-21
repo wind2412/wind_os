@@ -35,12 +35,11 @@ void init()
 //	kbd_init();			//用户模式下有bug？？？？？？？？？？？
 
 	switch_to_user_mode();
-//	asm volatile ("int $0x03;");
 //	switch_to_kern_mode();
 
 	asm volatile ("int $121;");
 
-	printf("haha\n");
+	printf("hehe\n");
 
 	while(1);
 }

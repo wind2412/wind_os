@@ -21,14 +21,13 @@ void tss_init()
 {
 	//先把内核栈设置到第一个tss结构体中去
 	tss0.back_link = 0;
-	tss0.ss0  = 0x08;		//设置内核栈段选择子
+//	tss0.ss0  = 0x08;		//这是错的！！！如果设置这个，在switch_to_user_mode之后随便一个int，因为要走tss，看到这个ss段是代码段，都会出错！qemu会不断卡seaBIOS！！！但是为什么啊。。。。。
+							//呵呵。。。我是傻吗。。。栈地址自然要在数据段......代码段肯定是错的啊......保护程度都不一样，描述符表的粒度信息都不同....虽然起始地址和段长度都是一样的......
+	tss0.ss0  = 0x10;		//设置内核栈段选择子为数据段！！！
 	tss0.esp0 = (u32)kern_stack + sizeof(kern_stack);	//tss0.esp0指向内核栈底部，而后即使切换，也一直不会变了。
 
 	//在GDT表的第六项设置我们的第一个tss段：TSS Descriptor		//注意：因为GDT一开始就设置了6项，所以不用在这里lgdt。
-	//之前tss这里的粒度位计算成了0x89......然后各种启动不了......简直要死.......后来改成0x8B之后终于变成不断0x0d中断，感觉好幸福啊TAT
-	//0x89的话，4位的type位就是二进制1001(是9)，而0x8B的话，4位的type位就是二进制的1011(B)。只有一位的不同，但是会导致不同的结果！
-	//不同的位为type位的第一位(0开始计数)，第一位表示可读还是可执行，如果是0，就是只可执行不可读，如果是1就是可读。一开始设置0是不可读,,,当然会各种错误了......TAT
-	set_seg_gate_desc(5, (u32)&tss0, sizeof(tss0), 0x8B, 0x04);		//TSS的DPL也设置成0x00的ring0！如果设置成user会怎样？？？？？？？？就会啥情况下都可以切换了吗/？？？？？
+	set_seg_gate_desc(5, (u32)&tss0, sizeof(tss0), 0x89, 0x04);		//TSS的DPL也设置成0x00的ring0！如果设置成user会怎样？？？？？？？？就会啥情况下都可以切换了吗/？？？？？
 	//放到TR寄存器里边，使用ltr命令
 	ltr(5*8);		//offset_in_gdt <- 每个gdtdesc占用8字节64位，5号tss前边共有0,1,2,3,4,共计5个描述符表。因此5*8.
 
@@ -65,7 +64,7 @@ void switch_to_user_handler(struct idtframe *frame)
 //实际上，只要用户态ring3调用int中断(不一定非要是switch_to_kern_mode)，就一定会触发tr和tss，然后瞬间切换到内核栈kern_stack[1024].然后CPU会在中断的起始之前压入ring3的ss和esp。
 void switch_to_kern_handler(struct idtframe *frame)
 {
-//	printf("haha");
+	printf("haha");
 }
 
 void switch_to_user_mode()
