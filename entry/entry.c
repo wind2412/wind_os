@@ -32,11 +32,13 @@ void init()
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......
 //	timer_intr_init();
-//	kbd_init();			//不知道为什么，没有绑定新的handler之前，老的handler无论按几次键盘都只输出一次......
+//	kbd_init();			//用户模式下有bug？？？？？？？？？？？
 
 	switch_to_user_mode();
-
 //	asm volatile ("int $0x03;");
+//	switch_to_kern_mode();
+
+	asm volatile ("int $121;");
 
 	printf("haha\n");
 
