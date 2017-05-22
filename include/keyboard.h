@@ -41,14 +41,23 @@ static u8 keyboard_shift[0xFF] = {
 };
 
 //双键位的后一个键位：
-#define		PRESS_UP			0x48
-#define		PRESS_LF			0x4B
-#define		PRESS_RT			0x4D
-#define		PRESS_DN			0x50
+#define		PRESS_UP			0x48		//双中断。
+#define		PRESS_LF			0x4B		//双中断。
+#define		PRESS_RT			0x4D		//双中断。
+#define		PRESS_DN			0x50		//双中断。
+
+#define		DOUBLE_KEY			0xE0		//这个是双键位
 
 #define		PRESS_CAPS_LOCK		0x3A
+
+#define		PRESS_CTRL			0x1D		//这是双中断，先中断0xE0. 左右control按下是一样的。只不过右control是双中断而已。
+#define 	RELEASE_CTRL		0x9D
+//#define 	RELEASE_RT_CTRL		0x9D		//这也是双中断，先中断0xE0
+
 #define		PRESS_LF_SHIFT		0x2A
 #define		PRESS_RT_SHIFT		0x36
+#define		RELEASE_LF_SHIFT	0xAA
+#define		RELEASE_RT_SHIFT	0xB6
 
 
 //适用于caps lock打开时，将小写转化为大写。
