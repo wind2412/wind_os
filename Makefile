@@ -12,7 +12,7 @@ AS := i386-elf-as
 LD := i386-elf-ld
 OBJCOPY := i386-elf-objdump
 OBJCOPY := i386-elf-objcopy
-EXCEPT := ./sign.c 
+EXCEPT := ./sign.c
 BOOT_EXCEPT := ./boot/bootasm.o ./boot/bootmain.o  #mdzz! echo的输出有陷阱。输出时是不带“./***”路径的！而是直接显示“***”！！我是按照@echo的输出做得改动。。所以其实这里字符串如果不加./ ，就匹配不上。。mdzz。。。
 C_SOURCE := $(filter-out $(EXCEPT), $(shell find . -name "*.c"))
 S_SOURCE := $(shell find . -name "*.S")
@@ -25,7 +25,7 @@ all : sign $(C_OBJ) $(S_OBJ) bin/bootloader bin/wind_os.img clean_obj
 
 bin/wind_os.img : bin/bootloader bin/wind_os_kern
 	@dd if=/dev/zero of=$@ count=1000  # 1000 blocks each 512B as a page and filled wind_os.img with bit '0'.
-	@dd if=$(DIR_BIN)bootloader of=$@ conv=notrunc  # if don't use 'conv=notrunc' the .img file will shrink to the size of bootloader of 512B!! 
+	@dd if=$(DIR_BIN)bootloader of=$@ conv=notrunc  # if don't use 'conv=notrunc' the .img file will shrink to the size of bootloader of 512B!!
 	@dd if=$(DIR_BIN)wind_os_kern of=$@ seek=1 conv=notrunc  # don't overlap the bootloader of the 1st block. with seek=1 it will write in .img at the 2nd block of 512B.
 
 
@@ -45,7 +45,7 @@ boot/bootmain.o : boot/bootmain.c
 
 .c.o:
 	@$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
-	
+
 .s.o:
 	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
 
@@ -55,20 +55,21 @@ boot/bootmain.o : boot/bootmain.c
 bin/wind_os_kern: $(filter-out $(BOOT_EXCEPT), $(C_OBJ) $(S_OBJ))
 	$(LD) $(LDFLAGS) -o $@  $^
 
-	
+
 qemu:
-	@qemu $(DIR_BIN)wind_os.img -parallel stdio  # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
-	
+	@qemu $(DIR_BIN)wind_os.img -parallel stdio -serial null # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
+
 debug:
 	@qemu -S -s -hda $(DIR_BIN)wind_os.img & # mdzz!!!这里调了好长时间。。必须加上&表示后台运行才行！！究竟是什么原理。。。。不加，gdb会卡住。。。
 	@cgdb -d i386-elf-gdb -q -x $(DIR_BIN)gdbinit  # if -nx is not read any .gdbinit file, the -x will be read the .gdbinit file.
+#.....如果下边有名叫debug的文件夹....会各种make debug时候提示“debug has been updated”......所以必须改名为debug_.....
 
 .PHONY: clean
 
 clean_obj:
-	@rm -rf $(C_OBJ) $(S_OBJ) sign boot/bootloader.o 
+	@rm -rf $(C_OBJ) $(S_OBJ) sign boot/bootloader.o
 	@find . -name "*.d" -type f -exec rm -rf {} \;
-	
+
 clean:  clean_obj
 	@rm -rf bin/wind_os_kern bin/wind_os.img
 	@echo clean all.

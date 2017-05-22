@@ -1,45 +1,65 @@
 // Format of an ELF executable file
 
+#ifndef INCLUDE_ELF_H_
+#define INCLUDE_ELF_H_
+
 #define ELF_MAGIC 0x464C457FU  // "\x7FELF" in little endian
 
+
 // File header
-struct elfhdr {
-	u32 magic;  // must equal ELF_MAGIC
-	u8 elf[12];
-	u16 type;
-	u16 machine;
-	u32 version;
-	u32 entry;
-	u32 phoff;
-	u32 shoff;
-	u32 flags;
-	u16 ehsize;
-	u16 phentsize;
-	u16 phnum;
-	u16 shentsize;
-	u16 shnum;
-	u16 shstrndx;
+struct elf_t {
+    u32         e_magic;  // must equal ELF_MAGIC
+    u8      	e_ident[12];
+    u16         e_type;
+    u16         e_machine;
+    u32         e_version;
+    u32         e_entry;
+    u32         e_phoff;
+    u32         e_shoff;
+    u32         e_flags;
+    u16         e_ehsize;
+    u16         e_phentsize;
+    u16         e_phnum;
+    u16         e_shentsize;
+    u16         e_shnum;
+    u16         e_shstrndx;
+};
+
+//Section header
+struct sec_t {
+    u32     sh_name;
+    u32     sh_type;
+    u32     sh_flag;
+    u32     sh_addr;
+    u32     sh_offset;
+    u32     sh_size;
+    u32     sh_link;
+    u32     sh_info;
+    u32     sh_addralign;
+    u32     sh_entsize;
+};
+
+//Symbol table
+struct symtable_t {
+    u32     st_name;
+    u32     st_value;
+    u32     st_size;
+    u8      st_info;
+    u8      st_other;
+    u16     st_shndx;
 };
 
 // Program section header
-struct proghdr {
-	u32 type;
-	u32 off;
-	u32 vaddr;
-	u32 paddr;
-	u32 filesz;
-	u32 memsz;
-	u32 flags;
-	u32 align;
+struct prog_t {
+    u32         ph_type;
+    u32         ph_off;
+    u32         ph_vaddr;
+    u32         ph_paddr;
+    u32         ph_filesz;
+    u32         ph_memsz;
+    u32         ph_flags;
+    u32         ph_align;
 };
 
-// Values for Proghdr type
-#define ELF_PROG_LOAD           1
 
-// Flag bits for Proghdr flags
-#define ELF_PROG_FLAG_EXEC      1
-#define ELF_PROG_FLAG_WRITE     2
-#define ELF_PROG_FLAG_READ      4
-
-//PAGEBREAK!
-// Blank page.
+#endif

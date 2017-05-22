@@ -13,6 +13,7 @@
 #include <tss.h>
 #include <timer.h>
 #include <keyboard.h>
+#include <debug.h>
 
 
 void init()
@@ -25,6 +26,7 @@ void init()
 	putc('o');
 	putc('\n');
 	
+	init_elf_tables();		//开启debug和backtrace
 
 	gdt_init();
 	idt_init();
@@ -34,12 +36,13 @@ void init()
 //	timer_intr_init();
 	kbd_init();
 
+
 	switch_to_user_mode();
 	switch_to_kern_mode();
 
-//	asm volatile ("int $121;");
+//	asm volatile ("int $0x3;");
 
-	printf("hehe\n");
+	print_backtrace();		//打印堆栈～debug成功。
 
 	while(1);
 }

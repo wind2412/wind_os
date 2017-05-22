@@ -14,33 +14,33 @@
 void readseg(u8*, u32, u32);
 
 void bootmain(void) {
-	struct elfhdr *elf;
-	struct proghdr *ph, *eph;
+	struct elf_t *elf;
+	struct prog_t *ph, *eph;
 	void (*entry)(void);
 	u8* pa;
 
-	elf = (struct elfhdr*) 0x10000;  // scratch space
+	elf = (struct elf_t*) 0x10000;  // scratch space
 
 	// Read 1st page off disk
-	readseg((u8*) elf, 4096, 0);
+	readseg((u8*) elf, 4096*20, 0);		//为了使用我的elf，强行读取20个页才行。因为光是elf头，就大概有（一页4kb）20页了......也就是80kb......
 
 	// Is this an ELF executable?
-	if (elf->magic != ELF_MAGIC)
+	if (elf->e_magic != ELF_MAGIC)
 		return;  // let bootasm.S handle error
 
 	// Load each program segment (ignores ph flags).
-	ph = (struct proghdr*) ((u8*) elf + elf->phoff);
-	eph = ph + elf->phnum;
+	ph = (struct prog_t*) ((u8*) elf + elf->e_phoff);
+	eph = ph + elf->e_phnum;
 	for (; ph < eph; ph++) {
-		pa = (u8*) ph->paddr;
-		readseg(pa, ph->filesz, ph->off);
-		if (ph->memsz > ph->filesz)
-			stosb(pa + ph->filesz, 0, ph->memsz - ph->filesz);
+		pa = (u8*) ph->ph_paddr;
+		readseg(pa, ph->ph_filesz, ph->ph_off);
+		if (ph->ph_memsz > ph->ph_filesz)
+			stosb(pa + ph->ph_filesz, 0, ph->ph_memsz - ph->ph_filesz);
 	}
 
 	// Call the entry point from the ELF header.
 	// Does not return!
-	entry = (void (*)(void)) (elf->entry);
+	entry = (void (*)(void)) (elf->e_entry);
 	entry();
 }
 
