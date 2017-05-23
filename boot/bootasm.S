@@ -17,6 +17,10 @@
 start:
   cli                         # BIOS enabled interrupts; disable
 
+ // clc					//清空carry flag
+ // int $0x12			//检测low memory。如果在这里写就对，在call bootmain之前写，就会无限跳spin死循环。
+ // jc spin
+
   # Zero data segment registers DS, ES, and SS.
   xorw    %ax,%ax             # Set %ax to zero
   movw    %ax,%ds             # -> Data Segment
@@ -40,6 +44,28 @@ seta20.2:
 
   movb    $0xdf,%al               # 0xdf -> port 0x60
   outb    %al,$0x60
+
+  //memory probe int $0x15一定要在切换到保护模式之前！也就是必须在实模式下才能int $0x15成功。		--from ucore lab2
+  probe_memory:
+    movl $0, 0x8000
+    xorl %ebx, %ebx
+    movw $0x8004, %di		//es:edi是存放的memory结构体。这里，es之前已经设为0（是内存探测所需）。设为0x8000也是可以的。因为栈是向着低地址生长的，所以高的0x8000不会被破坏。
+  start_probe:
+    movl $0xE820, %eax
+    movl $20, %ecx
+    movl $0x534D4150, %edx
+    int $0x15
+    jnc cont
+    movw $12345, 0x8000
+    jmp finish_probe
+  cont:
+    addw $20, %di
+    incl 0x8000
+    cmpl $0, %ebx
+    jnz start_probe
+  finish_probe:
+
+
 
   # Switch from real to protected mode.  Use a bootstrap GDT that makes
   # virtual addresses map directly to physical addresses so that the

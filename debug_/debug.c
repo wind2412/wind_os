@@ -141,8 +141,6 @@ void print_backtrace()
     u32 *ebp = (u32 *)temp_ebp;
     u32 *return_addr = ebp + 1; //上一个函数的地址。索引到高地址的位置，就会得到跳转到上一个函数了。
 
-    printf("%s\n", strtab_ptr);
-
     while(ebp)
     {
         const char *func_name;

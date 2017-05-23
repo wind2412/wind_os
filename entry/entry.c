@@ -14,6 +14,7 @@
 #include <timer.h>
 #include <keyboard.h>
 #include <debug.h>
+#include <pmm.h>
 
 
 void init()
@@ -43,6 +44,8 @@ void init()
 //	asm volatile ("int $0x3;");
 
 	print_backtrace();		//打印堆栈～debug成功。
+
+	init_pmm();
 
 	while(1);
 }
