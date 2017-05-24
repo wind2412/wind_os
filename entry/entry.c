@@ -52,6 +52,11 @@ __attribute__((section(".init.text"))) void kern_init()
 	//开启分页
 	asm volatile ("movl %%cr0, %%eax; orl $0x80000000, %%eax; movl %%eax, %%cr0":::"%eax");
 
+	//切换内核栈
+	extern u8 kern_stack[];
+	asm volatile ("movl %0, %%esp;xorl %%ebp, %%ebp"::"r"(kern_stack + 1024));
+
+
 	//调用正常的初始化函数
 	init();
 }
@@ -70,21 +75,20 @@ void init()
 
 	gdt_init();
 	idt_init();
+	init_pmm();		//因为这里有设置中断向量表，因此一定要在idt_init之后进行！！！
 	pic_init();
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......
 //	timer_intr_init();
 	kbd_init();
 
-
-	switch_to_user_mode();
+	switch_to_user_mode();		//分页在用户模式下会有问题。
 	switch_to_kern_mode();
 
 //	asm volatile ("int $0x3;");
 
 	print_backtrace();		//打印堆栈～debug成功。
 
-	init_pmm();
 
 	while(1);
 }

@@ -10,6 +10,7 @@
 
 #include <types.h>
 #include <stdio.h>
+#include <idt.h>
 
 struct e820map {			//from ucore lab2     bios probe
     int nr_map;
