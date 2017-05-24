@@ -57,7 +57,7 @@ bin/wind_os_kern: $(filter-out $(BOOT_EXCEPT), $(C_OBJ) $(S_OBJ))
 
 
 qemu:
-	@qemu $(DIR_BIN)wind_os.img -parallel stdio -serial null # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
+	@qemu -hda $(DIR_BIN)wind_os.img -monitor stdio  # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
 
 debug:
 	@qemu -S -s -hda $(DIR_BIN)wind_os.img & # mdzz!!!这里调了好长时间。。必须加上&表示后台运行才行！！究竟是什么原理。。。。不加，gdb会卡住。。。
