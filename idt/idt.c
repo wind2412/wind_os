@@ -105,7 +105,7 @@ void trap(struct idtframe *frame){
 //	printf("interrupt ");	//这个trap只是调用真正的handler的中间层。
 //	((void (*)(struct idtframe *))handlers[frame->intr_No])(frame);		//调用handler
 //	((void *)handlers[frame->intr_No](struct idtframe *))(frame);
-	if(frame->intr_No != 33)	print_idtframe(frame);	//键盘中断就不打印了。
+//	if(frame->intr_No != 33)	print_idtframe(frame);	//键盘中断就不打印了。
 	handlers[frame->intr_No](frame);
 }
 

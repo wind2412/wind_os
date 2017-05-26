@@ -56,7 +56,6 @@ __attribute__((section(".init.text"))) void kern_init()
 	extern u8 kern_stack[];
 	asm volatile ("movl %0, %%esp;xorl %%ebp, %%ebp"::"r"(kern_stack + 1024));
 
-
 	//调用正常的初始化函数
 	init();
 }
