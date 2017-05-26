@@ -34,7 +34,8 @@ __attribute__((section(".init.text"))) void kern_init()
 	//组建页目录表
 	pd[0].pt_addr = (u32)snd >> 12;
 	pd[0].os = 0;
-	pd[0].sign = 0x3;
+	pd[0].sign = 0x7;		//发现了个比较有意思的现象!!在switch_to_user_mode中，写的asm volatile ("add $0x8, %esp;");是通过0xC0100000虚存访问的～
+							//而结束函数的pop %ebp是通过0x00100000直接访问的！！不知道为什么？？？？
 	pd[(u32)kern_start >> 22].pt_addr = (u32)snd >> 12;		//把0xC0000000的映射到0x2000上去。(自己指定目录表项，不必顺序映射)
 	pd[(u32)kern_start >> 22].os = 0;
 	pd[(u32)kern_start >> 22].sign = 0x7;				//最低的两位：R/W位和P位全都置一。
@@ -57,8 +58,10 @@ __attribute__((section(".init.text"))) void kern_init()
 	init_elf_tables();		//开启debug和backtrace		//感觉init_elf_tables之前切换内核栈的话，内核栈只有1024个，容易爆栈啊......
 
 	//切换内核栈
-	extern u8 kern_stack[];
-	asm volatile ("movl %0, %%esp;xorl %%ebp, %%ebp"::"r"(kern_stack + 1024));
+//	extern u8 kern_stack[];		//不能要这两句。。。。。因为后边有跳到内核态。如果这里就跳内核态，见debug的笔记，switch_to_kern_mode里，会把原先在内核栈里设置好的值重新复写。于是跳不到正确的位置了。。。
+								//这就是linus说的“内核栈要保持干净......”的原因吧......因为如果这两句开启了，那么后边一堆init啥的全都在内核栈中写入，然后switch_to_user_mode跳转之前会在内核栈中记录回来的位置。
+								//然而如果再switch_to_kern_mode的话，由于tss的原因，内核栈相当于“没有”，会从kern_stack + 1024，从零开始运行。这样的话，再向内写东西，就会全盘覆写，于是全出错了。
+//	asm volatile ("movl %0, %%esp;xorl %%ebp, %%ebp"::"r"(kern_stack + 1024));
 
 	//调用正常的初始化函数
 	init();
