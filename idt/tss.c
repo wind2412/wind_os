@@ -74,6 +74,9 @@ void switch_to_user_mode()
 	asm volatile ("sub $0x8, %esp;");		//这里是局部变量！！！因为kern->user并不压入ss和esp！！所以在int之后的switch_to_user_handler中，要自行进行压入操作。
 	asm volatile ("int $120;");
 	asm volatile ("add $0x8, %esp;");		//清除局部变量。等同于ucore中的 "mov %ebp, %esp". 看图即可理解。https://wenku.baidu.com/view/a7edfdc233687e21ae45a922.html?re=view
+			//分页在这一步每次都会跳到0x14分页异常中断，一开始还以为是这一句的问题。然而这一句无论换成什么，都会跳0x14 intr_14，而且此句不会执行。因此推断cpu在执行指令之前就抛出异常了。
+			//[那么就只有一个原因了！！！说明是访问下一条指令，访问EIP的时候崩了！！也就是，就这条asm volatile ("add $0x8, %esp;");的指令，它不让我访问.......]
+			//而且是之前跳用户模式的锅。
 }
 
 void switch_to_kern_mode()

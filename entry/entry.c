@@ -37,13 +37,15 @@ __attribute__((section(".init.text"))) void kern_init()
 	pd[0].sign = 0x3;
 	pd[(u32)kern_start >> 22].pt_addr = (u32)snd >> 12;		//把0xC0000000的映射到0x2000上去。(自己指定目录表项，不必顺序映射)
 	pd[(u32)kern_start >> 22].os = 0;
-	pd[(u32)kern_start >> 22].sign = 0x3;				//最低的两位：R/W位和P位全都置一。
+	pd[(u32)kern_start >> 22].sign = 0x7;				//最低的两位：R/W位和P位全都置一。
+				//哈哈哈哈！！切到用户模式会发生的问题，没想到竟然是user位没有指定。。分析了一整天了......gg  要在页目录表和页表**同时**改成0x7！！！也就是二进制00000111b！！
+				//但是这里肯定要重改。因为不是所有页面都允许用户访问的！所以，这里日后肯定要重修改。
 
 	//组建页表
 	for(int i = 0; i < PAGE_SIZE/4; i ++){
 		snd[i].page_addr = i;			//这个是计算好的。
 		snd[i].os = 0;
-		snd[i].sign = 0x3;
+		snd[i].sign = 0x7;
 	}
 
 	//设置页表
@@ -51,6 +53,8 @@ __attribute__((section(".init.text"))) void kern_init()
 
 	//开启分页
 	asm volatile ("movl %%cr0, %%eax; orl $0x80000000, %%eax; movl %%eax, %%cr0":::"%eax");
+
+	init_elf_tables();		//开启debug和backtrace		//感觉init_elf_tables之前切换内核栈的话，内核栈只有1024个，容易爆栈啊......
 
 	//切换内核栈
 	extern u8 kern_stack[];
@@ -62,7 +66,7 @@ __attribute__((section(".init.text"))) void kern_init()
 
 void init()
 {
-	clear_screen();
+//	clear_screen();		//清屏......
 	putc('h');
 	putc('e');
 	putc('l');
@@ -70,7 +74,6 @@ void init()
 	putc('o');
 	putc('\n');
 	
-	init_elf_tables();		//开启debug和backtrace
 
 	gdt_init();
 	idt_init();
