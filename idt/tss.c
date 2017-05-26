@@ -62,7 +62,8 @@ u32 jmp_to_old_esp;
 //实际上，只要用户态ring3调用int中断(不一定非要是switch_to_kern_mode)，就一定会触发tr和tss，然后瞬间切换到内核栈kern_stack[1024].然后CPU会在中断的起始之前压入ring3的ss和esp。
 void switch_to_kern_handler(struct idtframe *frame)
 {
-	printf("frame: %d\n", &frame);
+	printf("frame: %x\n", &frame);
+	printf("frame->esp: %x\n", frame->esp);
 	frame->cs = 0x08|0x00;
 	frame->my_eax = 0x10|0x00;			//ss已经在tss的时候就恢复成为内核栈的了，不需要变了。esp也是，因为根本不需要改。这次和上次不一样，iret只弹出eip,cs和eflags，和ss，esp无关。因为已经在内核栈了。
 	frame->eflags &= ~0x3000;			//恢复IOPL

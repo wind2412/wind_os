@@ -45,7 +45,7 @@ __attribute__((section(".init.text"))) void kern_init()
 	for(int i = 0; i < PAGE_SIZE/4; i ++){
 		snd[i].page_addr = i;			//这个是计算好的。
 		snd[i].os = 0;
-		snd[i].sign = 0x7;
+		snd[i].sign = 0x7;				//这里也要重改。因为设置了所有分页全都允许用户访问......
 	}
 
 	//设置页表
