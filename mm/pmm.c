@@ -9,9 +9,18 @@
 
 struct e820map *mm = (struct e820map *) ( 0x8000 + VERTUAL_MEM );
 
+struct free_area free_pages;
+
+struct pmm_manager *manager;
+
+extern struct pmm_manager default_pmm_manager;
+
+
+
+
 void print_memory()
 {
-	for(int i = 0; i < mm->nr_map; i ++){
+	for(int i = 0; i < mm->num; i ++){
 		printf("base_address: %x  length: %x  type: %d\n", mm->map[i].base_lo, mm->map[i].length_lo, mm->map[i].type);
 	}
 }
@@ -59,8 +68,31 @@ void page_fault(struct idtframe *frame)
     while (1);
 }
 
-void init_pmm()
+void pmm_init()
 {
-	set_handler(14, page_fault);
+	set_handler(14, page_fault);		//设置页异常中断函数
 	print_memory();
+	page_init();
+}
+
+struct pde_t new_page_dir_t[PAGE_SIZE/sizeof(struct pde_t)];	//页目录占用一页4096B，每项4B，共计1024个页目录项(2^10)。每个页目录项管理1024个页表项(2^10)，每个页表占4096B(2^12)，因此能够管理4G内存。
+
+void page_init()
+{
+	for(int i = 0; i < mm->num; i ++){
+		if(mm->map[i].type == 1 && i != 0){		//找到并非第一个空间
+			extern u8 kern_end[];
+			u32 free_mem_begin = (u32)kern_end;
+			u32 free_mem_end = mm->map[i].base_lo + mm->map[i].length_lo;
+			u32 pt_begin = ROUNDUP(free_mem_begin);		//页表的开始位置(内核本身不进行分页，仅仅分页空闲的空间作为malloc和free用)
+			u32 pt_end = ROUNDDOWN(free_mem_end);		//页表的结束位置
+
+			//使用default_pmm_manager
+			manager = &default_pmm_manager;
+
+			manager->init();
+			manager->init_page();
+
+		}
+	}
 }

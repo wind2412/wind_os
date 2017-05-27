@@ -11,9 +11,10 @@
 #include <types.h>
 #include <stdio.h>
 #include <idt.h>
+#include <list.h>
 
 struct e820map {			//from ucore lab2     bios probe
-    int nr_map;
+    int num;
     struct {
         u32 base_lo;
         u32 base_hi;
@@ -40,11 +41,35 @@ struct pte_t{
 #define PAGE_SIZE 		4096
 #define VERTUAL_MEM		0xC0000000
 
+#define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
+#define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
+
+struct Page{
+	int ref;		//引用计数
+	struct pte_t pt;
+	struct list_node node;
+};
+
+struct free_area{
+	struct list_node head;
+	int free_page_num;
+};
+
+struct pmm_manager{
+	const char *name;
+	void (*init)();
+	void (*init_page)();
+	void (*alloc_page)();
+	void (*free_page)();
+};
+
 void open_page_mm();
 
 void print_memory();
 
-void init_pmm();
+void pmm_init();
+
+void page_init();
 
 
 #endif /* INCLUDE_PMM_H_ */

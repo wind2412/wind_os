@@ -80,7 +80,7 @@ void init()
 
 	gdt_init();
 	idt_init();
-	init_pmm();		//因为这里有设置中断向量表，因此一定要在idt_init之后进行！！！
+	pmm_init();		//因为这里有设置中断向量表，因此一定要在idt_init之后进行！！！
 	pic_init();
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......
