@@ -12,6 +12,10 @@
 #include <stdio.h>
 #include <pmm.h>
 
+u32 malloc(u32 size);
+
+void free(u32 addr);
+
 
 
 #endif /* INCLUDE_MALLOC_H_ */

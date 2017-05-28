@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <idt.h>
 #include <list.h>
+#include <string.h>
 
 struct e820map {			//from ucore lab2     bios probe
     int num;
@@ -43,6 +44,8 @@ struct pte_t{
 
 #define PAGE_DIR_NUM	128		//128个页目录项，因此共计能够映射128*2^10*2^12B = 512MB.
 
+#define MAX_PAGE_POOL 	40000	//经过人工计算得到的页数量应该是三万+。
+
 #define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
 #define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
 
@@ -59,13 +62,13 @@ struct free_area{
 	int free_page_num;
 };
 
-struct pmm_manager{
-	const char *name;
-	void (*init)();
-	void (*init_page)();
-	void (*alloc_page)(int);
-	void (*free_page)();
-};
+u32 alloc_page();
+
+void free_page(u32 addr);
+
+void map(u32 va, u32 pa, int is_user);
+
+void unmap(u32 va);
 
 void open_page_mm();
 

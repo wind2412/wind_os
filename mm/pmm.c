@@ -11,11 +11,68 @@ struct e820map *mm = (struct e820map *) ( 0x8000 + VERTUAL_MEM );
 
 struct free_area free_pages;
 
-struct pmm_manager *manager;
+u32 free_page_pool[MAX_PAGE_POOL];
 
-extern struct pmm_manager default_pmm_manager;
+int page_stack_top = -1;		//模仿hx的栈实现
 
-//u32 free_page_pool[]
+u32 alloc_page()
+{
+	if(page_stack_top < 0)	return 0;
+	return free_page_pool[page_stack_top --];
+}
+
+void free_page(u32 addr)
+{
+	free_page_pool[++ page_stack_top] = addr;
+}
+
+void map(u32 va, u32 pa, int is_user)
+{
+	extern struct pde_t *pd;
+	extern u8 kern_start[];
+	if(va > 0xC0100000 && va < (u32)kern_start)					return;		//不允许link内核区域（笑
+	if(va > 0x100000   && va < (u32)kern_start - VERTUAL_MEM)	return;		//不允许link内核区域（笑 按理来说，pa也应该设定，但是还是算了。
+
+	if(pd[va >> 22].pt_addr == 0){	//如果va没有被页处理  如果是已经处理，但是却被free掉了，这里应该会出页异常。hx这里做的很不好，或许因为太简单了吧。
+
+		u32 new_page = alloc_page() + VERTUAL_MEM;
+
+		//设置页目录表
+		pd[va >> 22].sign = 0x7;
+		pd[va >> 22].os	  = 0;
+		pd[va >> 22].pt_addr = new_page >> 12;
+
+		memset((struct pte_t *)new_page, 0, PAGE_SIZE);
+
+		//设置页表
+		if(is_user) ((struct pte_t *)new_page)[va >> 12].sign = 0x7; else ((struct pte_t *)new_page)[va >> 12].sign = 0x3;
+		((struct pte_t *)new_page)[va >> 12].os	  = 0;
+		((struct pte_t *)new_page)[va >> 12].page_addr = pa >> 12;
+
+	} else {
+
+		//设置页表
+		u32 pte = (pd[va >> 22].pt_addr << 12) + VERTUAL_MEM;
+		if(is_user) ((struct pte_t *)pte)[va >> 12].sign = 0x7; else ((struct pte_t *)pte)[va >> 12].sign = 0x3;
+		((struct pte_t *)pte)[va >> 12].os	  = 0;
+		((struct pte_t *)pte)[va >> 12].page_addr = pa >> 12;
+
+	}
+
+	asm volatile ("invlpg (%0)"::"r"(va));		//刷新TLB.
+}
+
+void unmap(u32 va)
+{
+	extern struct pde_t *pd;
+	u32 pte = (pd[va >> 22].pt_addr << 12) + VERTUAL_MEM;
+
+	((struct pte_t *)pte)[va >> 12].sign = 0;
+	((struct pte_t *)pte)[va >> 12].os   = 0;
+	((struct pte_t *)pte)[va >> 12].page_addr = 0;
+
+	asm volatile ("invlpg (%0)"::"r"(va));		//刷新TLB.
+}
 
 void print_memory()
 {
@@ -23,7 +80,6 @@ void print_memory()
 		printf("base_address: %x  length: %x  type: %d\n", mm->map[i].base_lo, mm->map[i].length_lo, mm->map[i].type);
 	}
 }
-
 
 //copy from hx_kernel
 void page_fault(struct idtframe *frame)
@@ -85,19 +141,18 @@ void page_init()
 	for(int i = 0; i < mm->num; i ++){
 		if(mm->map[i].type == 1 && i != 0){		//找到并非第一个空间
 			extern u8 kern_end[];
-			u32 free_mem_begin = (u32)kern_end;
+			u32 free_mem_begin = (u32)kern_end - VERTUAL_MEM;
 			u32 free_mem_end = mm->map[i].base_lo + mm->map[i].length_lo;
-			u32 pt_begin = ROUNDUP(free_mem_begin);		//页表的开始位置(内核本身不进行分页，仅仅分页空闲的空间作为malloc和free用)
-			u32 pt_end = ROUNDDOWN(free_mem_end);		//页表的结束位置  但是这个变量其实是用不上的。因为分配不到这个位置。
+			u32 pt_begin = ROUNDUP(free_mem_begin);		//空闲页的开始位置(内核本身不进行分页，仅仅分页空闲的空间作为malloc和free用)
+			u32 pt_end = ROUNDDOWN(free_mem_end);		//空闲页的结束位置
 
-			//使用default_pmm_manager
-			manager = &default_pmm_manager;
+			for(u32 i = pt_begin; i < pt_end; i += PAGE_SIZE){
+				free_page(i);
+			}
 
-			manager->init();
-			manager->init_page();	//重新设置内核虚拟内存分页
-
-//			while()
-
+			//初始化数据结构
+			list_init(&free_pages.head);
+			free_pages.free_page_num = page_stack_top;
 		}
 	}
 }
