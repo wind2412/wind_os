@@ -41,8 +41,12 @@ struct pte_t{
 #define PAGE_SIZE 		4096
 #define VERTUAL_MEM		0xC0000000
 
+#define PAGE_DIR_NUM	128		//128个页目录项，因此共计能够映射128*2^10*2^12B = 512MB.
+
 #define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
 #define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
+
+#define get_outer_struct_ptr(node, type, member) ( (type *)( (u32)node - (u32)(&((type *)0)->member) ) )
 
 struct Page{
 	int ref;		//引用计数
@@ -59,7 +63,7 @@ struct pmm_manager{
 	const char *name;
 	void (*init)();
 	void (*init_page)();
-	void (*alloc_page)();
+	void (*alloc_page)(int);
 	void (*free_page)();
 };
 

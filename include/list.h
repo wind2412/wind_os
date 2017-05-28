@@ -23,7 +23,7 @@ __attribute__((always_inline)) inline void list_insert_after(struct list_node *n
 
 __attribute__((always_inline)) inline void list_delete(struct list_node *node);
 
-#define get_outer_struct_ptr(node, type, member) ( (type *)( (u32)node - (u32)(&((type *)0)->member) ) )
+
 
 /**********************************/
 
@@ -53,9 +53,6 @@ __attribute__((always_inline)) inline void list_delete(struct list_node *node){
 	node->next->prev = node->prev;
 	node->prev->next = node->next;
 }
-
-
-
 
 
 #endif /* INCLUDE_LIST_H_ */
