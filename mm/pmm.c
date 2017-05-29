@@ -49,54 +49,6 @@ void free_page(struct Page *page)
 	free_pages.free_page_num += 1;
 }
 
-void map(u32 va, u32 pa, int is_user)
-{
-	extern struct pde_t *pd;
-	extern u8 kern_start[];
-	if(va > 0xC0100000 && va < (u32)kern_start)					return;		//不允许link内核区域（笑
-	if(va > 0x100000   && va < (u32)kern_start - VERTUAL_MEM)	return;		//不允许link内核区域（笑 按理来说，pa也应该设定，但是还是算了。
-
-	if(pd[va >> 22].pt_addr == 0){	//如果va没有被页处理  如果是已经处理，但是却被free掉了，这里应该会出页异常。hx这里做的很不好，或许因为太简单了吧。
-
-		u32 new_page = alloc_page().va;
-
-		//设置页目录表
-		pd[va >> 22].sign = 0x7;
-		pd[va >> 22].os	  = 0;
-		pd[va >> 22].pt_addr = new_page >> 12;
-
-		memset((struct pte_t *)new_page, 0, PAGE_SIZE);
-
-		//设置页表
-		if(is_user) ((struct pte_t *)new_page)[va >> 12].sign = 0x7; else ((struct pte_t *)new_page)[va >> 12].sign = 0x3;
-		((struct pte_t *)new_page)[va >> 12].os	  = 0;
-		((struct pte_t *)new_page)[va >> 12].page_addr = pa >> 12;
-
-	} else {
-
-		//设置页表
-		u32 pte = (pd[va >> 22].pt_addr << 12) + VERTUAL_MEM;
-		if(is_user) ((struct pte_t *)pte)[va >> 12].sign = 0x7; else ((struct pte_t *)pte)[va >> 12].sign = 0x3;
-		((struct pte_t *)pte)[va >> 12].os	  = 0;
-		((struct pte_t *)pte)[va >> 12].page_addr = pa >> 12;
-
-	}
-
-	asm volatile ("invlpg (%0)"::"r"(va));		//刷新TLB.
-}
-
-void unmap(u32 va)
-{
-	extern struct pde_t *pd;
-	u32 pte = (pd[va >> 22].pt_addr << 12) + VERTUAL_MEM;
-
-	((struct pte_t *)pte)[va >> 12].sign = 0;
-	((struct pte_t *)pte)[va >> 12].os   = 0;
-	((struct pte_t *)pte)[va >> 12].page_addr = 0;
-
-	asm volatile ("invlpg (%0)"::"r"(va));		//刷新TLB.
-}
-
 void print_memory()
 {
 	for(int i = 0; i < mm->num; i ++){

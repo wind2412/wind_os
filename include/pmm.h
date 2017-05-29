@@ -70,10 +70,6 @@ struct Page alloc_page();
 
 void free_page(struct Page *);
 
-void map(u32 va, u32 pa, int is_user);
-
-void unmap(u32 va);
-
 void open_page_mm();
 
 void print_memory();
