@@ -149,6 +149,12 @@ void print_backtrace()
         return_addr = ebp + 1;
     }
 
-
 }
 
+void panic(const char *msg)
+{
+	printf("====================\n");
+	printf("%s\n", msg);
+	print_backtrace();
+	printf("====================\n");
+}

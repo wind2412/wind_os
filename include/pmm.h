@@ -13,6 +13,7 @@
 #include <idt.h>
 #include <list.h>
 #include <string.h>
+#include <debug.h>
 
 struct e820map {			//from ucore lab2     bios probe
     int num;
@@ -49,11 +50,12 @@ struct pte_t{
 #define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
 #define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
 
-#define get_outer_struct_ptr(node, type, member) ( (type *)( (u32)node - (u32)(&((type *)0)->member) ) )
+#define GET_OUTER_STRUCT_PTR(node, type, member) ( (type *)( (u32)node - (u32)(&((type *)0)->member) ) )
 
 struct Page{
 	int ref;		//引用计数
-	struct pte_t pt;
+	u32 va;
+	u32 free_mem;
 	struct list_node node;
 };
 
@@ -62,9 +64,11 @@ struct free_area{
 	int free_page_num;
 };
 
-u32 alloc_page();
+void add_page_addr_to_stack(u32 page);
 
-void free_page(u32 addr);
+struct Page alloc_page();
+
+void free_page(struct Page *);
 
 void map(u32 va, u32 pa, int is_user);
 

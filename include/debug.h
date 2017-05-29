@@ -21,6 +21,8 @@ void small_fgets(char *dest, long offset, long size, char *src);
 
 void init_elf_tables();
 
+void panic(const char *msg);
+
 const char *get_func_name(u32 addr);
 
 void print_backtrace();

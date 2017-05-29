@@ -12,9 +12,17 @@
 #include <stdio.h>
 #include <pmm.h>
 
-u32 malloc(u32 size);
+struct Chunk{
+	u32 allocated:1;
+	u32 size:31;
+	struct list_node node;
+};
 
-void free(u32 addr);
+void malloc_init();
+
+void *malloc(u32 size);
+
+void free(struct Chunk chunk);
 
 
 

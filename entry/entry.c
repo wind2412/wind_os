@@ -15,6 +15,7 @@
 #include <keyboard.h>
 #include <debug.h>
 #include <pmm.h>
+#include <malloc.h>
 
 //见ucore指导书：0～640KB是一开始空闲的，0~4kb全都当做页目录表，5~8,9~12,13~16,17~20kb当做页表（临时）（Linux0.11实现）
 __attribute__((section(".init.data"))) struct pde_t *pd  = (struct pde_t *)0x0000;
@@ -32,11 +33,11 @@ __attribute__((section(".init.text"))) void kern_init()
 {
 	extern u8 kern_start[];
 	//组建页目录表
-	pd[0].pt_addr = (u32)snd >> 12;
+	pd[0].pt_addr = (u32)fst >> 12;
 	pd[0].os = 0;
 	pd[0].sign = 0x7;		//发现了个比较有意思的现象!!在switch_to_user_mode中，写的asm volatile ("add $0x8, %esp;");是通过0xC0100000虚存访问的～
 							//而结束函数的pop %ebp是通过0x00100000直接访问的！！不知道为什么？？？？
-	pd[(u32)kern_start >> 22].pt_addr = (u32)snd >> 12;		//把0xC0000000的映射到0x2000上去。(自己指定目录表项，不必顺序映射)
+	pd[(u32)kern_start >> 22].pt_addr = (u32)fst >> 12;		//把0xC0000000的映射到0x2000上去。(自己指定目录表项，不必顺序映射)
 	pd[(u32)kern_start >> 22].os = 0;
 	pd[(u32)kern_start >> 22].sign = 0x7;				//最低的两位：R/W位和P位全都置一。
 				//哈哈哈哈！！切到用户模式会发生的问题，没想到竟然是user位没有指定。。分析了一整天了......gg  要在页目录表和页表**同时**改成0x7！！！也就是二进制00000111b！！
@@ -44,9 +45,9 @@ __attribute__((section(".init.text"))) void kern_init()
 
 	//组建页表
 	for(int i = 0; i < PAGE_SIZE/4; i ++){
-		snd[i].page_addr = i;			//这个是计算好的。
-		snd[i].os = 0;
-		snd[i].sign = 0x7;				//这里也要重改。因为设置了所有分页全都允许用户访问......
+		fst[i].page_addr = i;			//这个是计算好的。
+		fst[i].os = 0;
+		fst[i].sign = 0x7;				//这里也要重改。因为设置了所有分页全都允许用户访问......
 	}
 
 	//设置页表
@@ -70,17 +71,12 @@ __attribute__((section(".init.text"))) void kern_init()
 void init()
 {
 //	clear_screen();		//清屏......
-	putc('h');
-	putc('e');
-	putc('l');
-	putc('l');
-	putc('o');
-	putc('\n');
-	
+	printf("hello!\n");
 
 	gdt_init();
 	idt_init();
 	pmm_init();		//因为这里有设置中断向量表，因此一定要在idt_init之后进行！！！
+	malloc_init();
 	pic_init();
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......
