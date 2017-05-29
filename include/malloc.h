@@ -22,8 +22,9 @@ void malloc_init();
 
 void *malloc(u32 size);
 
-void free(struct Chunk chunk);
+void free(void *);
 
+void test_malloc();
 
 
 #endif /* INCLUDE_MALLOC_H_ */

@@ -127,7 +127,10 @@ void page_init()
 
 			printf("=====%x=====\n", pt_begin);//0x1af000
 
-			for(u32 i = pt_begin; i < pt_end; i += PAGE_SIZE){
+//			for(u32 i = pt_begin; i < pt_end; i += PAGE_SIZE){
+//				add_page_addr_to_stack(i);
+//			}
+			for(u32 i = pt_end - PAGE_SIZE; i >= pt_begin; i -= PAGE_SIZE){
 				add_page_addr_to_stack(i);
 			}
 

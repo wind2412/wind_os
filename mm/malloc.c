@@ -5,9 +5,6 @@
  *      Author: zhengxiaolin
  */
 
-#ifndef MM_MALLOC_C_
-#define MM_MALLOC_C_
-
 #include <malloc.h>
 
 struct list_node chunk_head;
@@ -27,9 +24,11 @@ void malloc_init()
 	((struct Chunk *)heap_max)->size = PAGE_SIZE;
 	((struct Chunk *)heap_max)->node.next = &chunk_head;
 	((struct Chunk *)heap_max)->node.prev = &chunk_head;
+	heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
 }
 
 //first fit算法 hx_kern
+//注意：完全“顺序”malloc。因此，才能实现“合并free块”
 void *malloc(u32 size)
 {
 	u32 total_alloc_size = sizeof(struct Chunk) + size;
@@ -73,13 +72,79 @@ void *malloc(u32 size)
 	return (void *)((u32)cur + sizeof(struct Chunk));
 }
 
-void free(struct Chunk chunk)
+void free(void *addr)
 {
+	struct Chunk *chunk = (struct Chunk *)((u32)addr - sizeof(struct Chunk));
+	chunk->allocated = 0;
+	u32 this_size = chunk->size;
+
+	//和上下块合并
+	struct Chunk *prev = chunk->node.prev == &chunk_head ? NULL : GET_OUTER_STRUCT_PTR(chunk->node.prev, struct Chunk, node);
+	struct Chunk *next = chunk->node.next == &chunk_head ? NULL : GET_OUTER_STRUCT_PTR(chunk->node.next, struct Chunk, node);
+
+	if(prev != NULL && prev->allocated == 0){
+		list_delete(&chunk->node);
+		prev->size += this_size;
+		chunk = prev;		//把chunk设为prev。 也就是，在和next合并之前，chunk更新为next前边的块指针。(因为，chunk本身可能被prev合并。)
+	}
+
+	if(next != NULL && next->allocated == 0){
+		list_delete(&next->node);
+		chunk->size += next->size;
+	}
+
+	if(chunk->node.next == &chunk_head){	//后边没有了，就真·free了。		//from hx_kern
+		chunk->size = 0;		//设为0，防止麻烦，UB问题。万一被malloc的循环读到就不好了。
+		while((heap_max - PAGE_SIZE) >= (u32)chunk){
+			heap_max -= PAGE_SIZE;
+			add_page_addr_to_stack(heap_max);
+		}
+		list_delete(&chunk->node);
+		if(chunk_head.next == &chunk_head){
+//			malloc_init();		//重新开始。	//会出问题。。。竟然意外跳了EIP？
+			alloc_page();
+			chunk_head.prev = chunk_head.next = &((struct Chunk *)heap_max)->node;
+			//设置这一页。
+			((struct Chunk *)heap_max)->allocated = 0;
+			((struct Chunk *)heap_max)->size = PAGE_SIZE;
+			((struct Chunk *)heap_max)->node.next = &chunk_head;
+			((struct Chunk *)heap_max)->node.prev = &chunk_head;
+			heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
+		}
+	}
 
 }
 
 
+void test_malloc()
+{
+	void *addr1, *addr2, *addr3, *addr4, *addr5;
+	printf("malloc addr is: %x\n", addr1 = malloc(1000));
+	printf("malloc addr is: %x\n", addr2 = malloc(1000));
+	printf("malloc addr is: %x\n", addr3 = malloc(5000));
+	printf("malloc addr is: %x\n", addr4 = malloc(5000));
+	printf("malloc addr is: %x\n", addr5 = malloc(5000));
+
+	free(addr1);
+	free(addr2);
+	free(addr3);
+	free(addr4);
+	free(addr5);
+
+	printf("after free:\n");
+
+	printf("malloc addr is: %x\n", addr1 = malloc(1000));
+	printf("malloc addr is: %x\n", addr2 = malloc(1000));
+	printf("malloc addr is: %x\n", addr3 = malloc(5000));
+	printf("malloc addr is: %x\n", addr4 = malloc(5000));
+	printf("malloc addr is: %x\n", addr5 = malloc(5000));
+
+	free(addr1);
+	free(addr2);
+	free(addr3);
+	free(addr4);
+	free(addr5);
+
+}
 
 
-
-#endif /* MM_MALLOC_C_ */

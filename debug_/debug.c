@@ -157,4 +157,5 @@ void panic(const char *msg)
 	printf("%s\n", msg);
 	print_backtrace();
 	printf("====================\n");
+	while(1);
 }
