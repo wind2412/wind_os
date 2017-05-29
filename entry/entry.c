@@ -90,6 +90,12 @@ void init()
 
 	print_backtrace();		//打印堆栈～debug成功。
 
+	printf("malloc addr is: %x\n", malloc(1000));
+	printf("malloc addr is: %x\n", malloc(1000));
+	printf("malloc addr is: %x\n", malloc(5000));
+	printf("malloc addr is: %x\n", malloc(5000));
+	printf("malloc addr is: %x\n", malloc(5000));
+
 
 	while(1);
 }

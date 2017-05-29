@@ -41,31 +41,33 @@ void *malloc(u32 size)
 			struct Chunk *next = (struct Chunk *)((u32)chunk + total_alloc_size);
 			next->allocated = 0;
 			next->size = chunk->size - total_alloc_size;		//要减去分割开的上一部分还有这个next的大小
-			next->node.prev = &chunk->node;
-			next->node.next = chunk->node.next;
+			list_insert_after(&chunk->node, &next->node);
 
 			//对"此chunk"进行设置
 			chunk->allocated = 1;
 			chunk->size = total_alloc_size;
-			chunk->node.next = &next->node;
 
 			return (void *)((u32)chunk + sizeof(struct Chunk));
 		}else{	//继续遍历还有哪个页能容纳下所需要的size
+			if(chunk->node.next == &chunk_head)	break;	//这一句是防止如果现在是最后一个块，下一个是chunk_head，但是自身却少于size大小，如果是这样的话，else里会->next变成node自身，就会无限循环。。。恶心的设计。
 			node = node->next;
 			continue;
 		}
 	}
 
 	//如果程序没有返回，而是走到这里，那就说明必须要从heap_max指向的位置开始分配页面了。
-	struct Chunk *prev = GET_OUTER_STRUCT_PTR(node->prev, struct Chunk, node);
+	struct Chunk *prev;
+	if(GET_OUTER_STRUCT_PTR(chunk_head.prev, struct Chunk, node)->allocated == 1){
+		prev = GET_OUTER_STRUCT_PTR(chunk_head.prev, struct Chunk, node);
+	}else{
+		prev = GET_OUTER_STRUCT_PTR(chunk_head.prev->prev, struct Chunk, node);
+	}
 	while(heap_max < (u32)prev + sizeof(struct Chunk) + prev->size + total_alloc_size){	//不断分配页面，如果size太大的话
 		struct Page page = alloc_page();
 		heap_max += PAGE_SIZE;		//更新下次如果前边malloc的没有free的话，想要再malloc的新chunk位置
 	}
 	struct Chunk *cur = (struct Chunk *)((u32)prev + sizeof(struct Chunk) + prev->size);
-	prev->node.next = &cur->node;
-	cur->node.prev = &prev->node;
-	cur->node.next = node;
+	list_insert_before(&chunk_head, &cur->node);
 	cur->allocated = 1;
 	cur->size = size;
 	return (void *)((u32)cur + sizeof(struct Chunk));
