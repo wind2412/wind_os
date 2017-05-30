@@ -11,42 +11,62 @@ struct e820map *mm = (struct e820map *) ( 0x8000 + VERTUAL_MEM );
 
 struct free_area free_pages;
 
-u32 free_page_pool[MAX_PAGE_POOL];
-
-int page_stack_top = -1;		//模仿hx的栈实现
-
-struct list_node *prev_alloc = NULL;		//全局量，前一个alloc页。	多进程的话，这里应该设置互斥量。
-
-
-void add_page_addr_to_stack(u32 page_addr)
+struct Page *alloc_page(int n)
 {
-	free_page_pool[++ page_stack_top] = page_addr;
+	if(n > free_pages.free_page_num)	return NULL;
+	struct list_node *ptr = &free_pages.head;
+	while(ptr->next != &free_pages.head){
+		struct Page *page = GET_OUTER_STRUCT_PTR(free_pages.head->next, struct Page, node);
+		if(page->free_pages >= n){
+			int remain_blocks = page->free_pages - n;
+			struct list_node *del = page->node;
+			struct list_node *del_next = del->next;
+			for(int i = 0; i < n; i ++){
+				list_delete(del);
+				del = del_next;
+				del_next = del_next->next;
+			}
+			GET_OUTER_STRUCT_PTR(del, struct Page, node)->free_pages = remain_blocks;	//更新split之后的剩下的pages数目
+			free_pages.free_page_num -= n;
+			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回va更好。
+		}
+		ptr = ptr->next;
+	}
+	return NULL;
 }
 
-struct Page alloc_page()
+void free_page(struct Page *page, int n)
 {
-	if(page_stack_top < 0)	panic("stack underflow!");
-	struct Page page = {
-			.ref = 1,
-			.va = free_page_pool[page_stack_top --] + VERTUAL_MEM,
-			.free_mem = PAGE_SIZE,
-			.node = {
-				.prev = prev_alloc,
-				.next = NULL,
-			},
-	};
-	list_insert_before(&free_pages.head, &page.node);
-	prev_alloc = &page.node;
-	free_pages.free_page_num -= 1;
-	return page;
-}
+	struct list_node *ptr = &free_pages.head;
+	//需要遍历了。因为必须索引到我们的page要插入的位置才行。因为中间位置也有可能会被alloc page。
+	struct Page *target;
+	while(ptr->next != &free_pages.head){
+		target = GET_OUTER_STRUCT_PTR(ptr->next, struct Page, node);
+		if(target > page)	break;
+		ptr = ptr->next;
+	}
+	for(int i = 0; i < n; i ++){
+		list_insert_before(&target->node, &(page + i)->node);
+	}
+	page->flags = 0;
+	page->free_pages = n;
 
-void free_page(struct Page *page)
-{
-	free_page_pool[++ page_stack_top] = page->va - VERTUAL_MEM;
-	if(prev_alloc == &page->node)	prev_alloc = page->node.prev;		//如果free的是登记在全局量的alloc页，那么如果不修改登记的全局量，会影响到alloc_page()中链表的前驱节点记录。
-	list_delete(&page->node);
-	free_pages.free_page_num += 1;
+	free_pages.free_page_num += n;
+
+	//向下合并
+	if(page + n == target){	//如果page和target之间是连续内存的话，合并。
+		page->free_pages += target->free_pages;
+		target->free_pages = 0;
+	}
+
+	//向上合并
+	ptr = page->node.prev;
+	target = GET_OUTER_STRUCT_PTR(ptr, struct Page, node);
+	if(target + target->free_pages == page){
+		target->free_pages += page->free_pages;
+		page->free_pages = 0;
+	}
+
 }
 
 void print_memory()
@@ -110,9 +130,11 @@ void pmm_init()
 //因而ucore聪明地把所有内核外的空闲页取出第一页来当成页目录表，而且P位设置可用为1.这样可以读取了。但是要禁止把它分配出去。
 //struct pde_t new_page_dir_t[PAGE_SIZE/sizeof(struct pde_t)] __attribute__((aligned(PAGE_SIZE)));	//页目录占用一页4096B，每项4B，共计1024个页目录项(2^10)。每个页目录项管理1024个页表项(2^10)，每个页表占4096B(2^12)，因此能够管理4G内存。
 //struct pte_t new_page_kern_table[2 * PAGE_SIZE / sizeof(struct pte_t)] __attribute__((aligned(PAGE_SIZE)));	//假设我们的内核只有8个M。两页就能放下。
-struct pte_t new_page_freemem_table[PAGE_DIR_NUM * PAGE_SIZE / sizeof(struct pte_t)] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
+//struct pte_t new_page_freemem_table[PAGE_DIR_NUM * PAGE_SIZE / sizeof(struct pte_t)] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
+struct pte_t new_page_freemem_table[MAX_PAGE_NUM] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
 
-u32 pt_begin;		//空闲空间的起始位置
+struct Page *pages;		//pages的起始位置
+u32 pt_begin;			//空闲空间的起始位置
 
 void page_init()
 {
@@ -122,21 +144,26 @@ void page_init()
 			extern u8 kern_end[];
 			u32 free_mem_begin = (u32)kern_end - VERTUAL_MEM;
 			u32 free_mem_end = mm->map[i].base_lo + mm->map[i].length_lo;
-			pt_begin = ROUNDUP(free_mem_begin);		//空闲页的开始位置(内核本身不进行分页，仅仅分页空闲的空间作为malloc和free用)
-			u32 pt_end = ROUNDDOWN(free_mem_end);		//空闲页的结束位置
+			pages = (struct Page *)ROUNDUP(free_mem_begin);		//pages的开始位置
+			u32 pt_end = ROUNDDOWN(free_mem_end);				//空闲页的结束位置
+			int free_page_num = (pt_end - (u32)pages)/PAGE_SIZE;  if(free_page_num > MAX_PAGE_NUM) free_page_num = MAX_PAGE_NUM;	//最多3w个页。
+//			for(int i = 0; i < free_page_num; i ++){		//计算结果可能会与实际有出入。
+//					//这是Page结构体的初始化。
+//			}
+			pt_begin = ROUNDUP((u32)pages + free_page_num * sizeof(struct Page));				//空闲页的起始位置
 
 			printf("=====%x=====\n", pt_begin);//0x1af000
 
-//			for(u32 i = pt_begin; i < pt_end; i += PAGE_SIZE){
-//				add_page_addr_to_stack(i);
-//			}
-			for(u32 i = pt_end - PAGE_SIZE; i >= pt_begin; i -= PAGE_SIZE){
-				add_page_addr_to_stack(i);
-			}
-
 			//初始化数据结构
 			list_init(&free_pages.head);
-			free_pages.free_page_num = page_stack_top;
+
+			memset((void *)pages, 0, free_page_num * sizeof(struct Page));	//清空所有Page结构体信息
+			pages->free_pages = free_page_num;
+			free_pages.free_page_num = free_page_num;
+			for(int i = 0; i < free_page_num; i ++){
+				list_insert_before(&free_pages.head, &(pages + i)->node);
+			}
+
 
 			//重新分页!
 			extern struct pde_t *pd;
@@ -148,13 +175,26 @@ void page_init()
 				pd[i].os = 0;
 				pd[i].sign = 0x07;
 			}
-			for(int i = 0; i < PAGE_DIR_NUM * PAGE_SIZE / sizeof(struct pte_t); i ++){
-				new_page_freemem_table[i].page_addr = i + 1024;
-				new_page_freemem_table[i].os = 0;
-				new_page_freemem_table[i].sign = 0x03;
-			}
-			//设置页表
+//			for(int i = 0; i < PAGE_DIR_NUM * PAGE_SIZE / sizeof(struct pte_t); i ++){
+//				new_page_freemem_table[i].page_addr = i + 1024;
+//				new_page_freemem_table[i].os = 0;
+//				new_page_freemem_table[i].sign = 0x03;
+//			}
+			//设置页目录表
 			asm volatile ("movl %0, %%cr3"::"r"(pd));
 		}
 	}
+}
+
+void map(u32 va, u32 pa, u8 is_user)
+{
+	extern struct pde_t *pd;
+//	if(pd[va >> 22] & 0x1 == 0){	//如果此页目录表没有设置	但其实页目录表已经设置完了。
+//
+//	}
+}
+
+void unmap(u32 va)
+{
+
 }

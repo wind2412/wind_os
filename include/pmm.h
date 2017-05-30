@@ -45,7 +45,7 @@ struct pte_t{
 
 #define PAGE_DIR_NUM	128		//128个页目录项，因此共计能够映射128*2^10*2^12B = 512MB.
 
-#define MAX_PAGE_POOL 	40000	//经过人工计算得到的页数量应该是三万+。
+#define MAX_PAGE_NUM 	30000	//经过人工计算得到的页数量应该是三万+。
 
 #define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
 #define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
@@ -54,8 +54,8 @@ struct pte_t{
 
 struct Page{
 	int ref;		//引用计数
-	u32 va;
-	u32 free_mem;
+	u32 flags;
+	u32 free_pages;
 	struct list_node node;
 };
 
@@ -64,13 +64,13 @@ struct free_area{
 	int free_page_num;
 };
 
-void add_page_addr_to_stack(u32 page);
+struct Page *alloc_page(int n);
 
-struct Page alloc_page();
+void free_page(struct Page *, int n);
 
-void free_page(struct Page *);
+void map(u32 va, u32 pa, u8 is_user);
 
-void open_page_mm();
+void unmap(u32 va);
 
 void print_memory();
 
