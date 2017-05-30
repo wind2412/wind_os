@@ -47,8 +47,12 @@ struct pte_t{
 
 #define MAX_PAGE_NUM 	30000	//经过人工计算得到的页数量应该是三万+。
 
-#define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
-#define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
+//#define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
+//#define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
+
+//给宏变量加上括号是好习惯。防止输入算式的话，由于符号优先级会出错。
+#define ROUNDUP(addr)	((addr) - ((addr) % PAGE_SIZE) + PAGE_SIZE)
+#define ROUNDDOWN(addr)	((addr) - ((addr) % PAGE_SIZE))
 
 #define GET_OUTER_STRUCT_PTR(node, type, member) ( (type *)( (u32)node - (u32)(&((type *)0)->member) ) )
 
@@ -68,9 +72,16 @@ struct Page *alloc_page(int n);
 
 void free_page(struct Page *, int n);
 
+u32 pg_to_addr(struct Page *page);
+
+struct Page *addr_to_pg(u32 addr);
+
+
 void map(u32 va, u32 pa, u8 is_user);
 
 void unmap(u32 va);
+
+
 
 void print_memory();
 

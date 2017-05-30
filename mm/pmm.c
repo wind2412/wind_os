@@ -16,10 +16,10 @@ struct Page *alloc_page(int n)
 	if(n > free_pages.free_page_num)	return NULL;
 	struct list_node *ptr = &free_pages.head;
 	while(ptr->next != &free_pages.head){
-		struct Page *page = GET_OUTER_STRUCT_PTR(free_pages.head->next, struct Page, node);
+		struct Page *page = GET_OUTER_STRUCT_PTR(free_pages.head.next, struct Page, node);
 		if(page->free_pages >= n){
 			int remain_blocks = page->free_pages - n;
-			struct list_node *del = page->node;
+			struct list_node *del = &page->node;
 			struct list_node *del_next = del->next;
 			for(int i = 0; i < n; i ++){
 				list_delete(del);
@@ -27,6 +27,7 @@ struct Page *alloc_page(int n)
 				del_next = del_next->next;
 			}
 			GET_OUTER_STRUCT_PTR(del, struct Page, node)->free_pages = remain_blocks;	//更新split之后的剩下的pages数目
+			GET_OUTER_STRUCT_PTR(del, struct Page, node)->flags = 1;	//设为已用
 			free_pages.free_page_num -= n;
 			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回va更好。
 		}
@@ -39,12 +40,13 @@ void free_page(struct Page *page, int n)
 {
 	struct list_node *ptr = &free_pages.head;
 	//需要遍历了。因为必须索引到我们的page要插入的位置才行。因为中间位置也有可能会被alloc page。
-	struct Page *target;
+	struct Page *target = 0;
 	while(ptr->next != &free_pages.head){
 		target = GET_OUTER_STRUCT_PTR(ptr->next, struct Page, node);
 		if(target > page)	break;
 		ptr = ptr->next;
 	}
+	if(target == NULL)	return;
 	for(int i = 0; i < n; i ++){
 		list_insert_before(&target->node, &(page + i)->node);
 	}
@@ -144,15 +146,20 @@ void page_init()
 			extern u8 kern_end[];
 			u32 free_mem_begin = (u32)kern_end - VERTUAL_MEM;
 			u32 free_mem_end = mm->map[i].base_lo + mm->map[i].length_lo;
+			printf("free_mem_begin:===%x===, free_mem_end:===%x===\n", free_mem_begin, free_mem_end);
 			pages = (struct Page *)ROUNDUP(free_mem_begin);		//pages的开始位置
 			u32 pt_end = ROUNDDOWN(free_mem_end);				//空闲页的结束位置
-			int free_page_num = (pt_end - (u32)pages)/PAGE_SIZE;  if(free_page_num > MAX_PAGE_NUM) free_page_num = MAX_PAGE_NUM;	//最多3w个页。
+			int free_page_num = (pt_end - (u32)pages)/PAGE_SIZE;
+			if(free_page_num > MAX_PAGE_NUM) free_page_num = MAX_PAGE_NUM;	//最多3w个页。
 //			for(int i = 0; i < free_page_num; i ++){		//计算结果可能会与实际有出入。
 //					//这是Page结构体的初始化。
 //			}
 			pt_begin = ROUNDUP((u32)pages + free_page_num * sizeof(struct Page));				//空闲页的起始位置
 
-			printf("=====%x=====\n", pt_begin);//0x1af000
+			printf("=====%x=====\n", pt_begin);//0x1af000		//fuck 调了好长时间，发现是宏的问题。
+								//举个栗子：比如我的原先的ROUNDUP函数，如果输入带+号的算式进去，比如ROUNDUP(printf("%x\n", ROUNDUP((unsigned)0x125000 + 30000 * 20));)
+								//会可气地展开成：((unsigned)0x125000 + 30000 * 20 - ((unsigned)0x125000 + 30000 * 20 % 4096) + 4096)......
+								//一定要记得加括号......
 
 			//初始化数据结构
 			list_init(&free_pages.head);
@@ -175,15 +182,26 @@ void page_init()
 				pd[i].os = 0;
 				pd[i].sign = 0x07;
 			}
-//			for(int i = 0; i < PAGE_DIR_NUM * PAGE_SIZE / sizeof(struct pte_t); i ++){
-//				new_page_freemem_table[i].page_addr = i + 1024;
-//				new_page_freemem_table[i].os = 0;
-//				new_page_freemem_table[i].sign = 0x03;
-//			}
+			for(int i = 0; i < MAX_PAGE_NUM; i ++){
+				new_page_freemem_table[i].page_addr = i + 1024;
+				new_page_freemem_table[i].os = 0;
+				new_page_freemem_table[i].sign = 0x03;
+			}
 			//设置页目录表
 			asm volatile ("movl %0, %%cr3"::"r"(pd));
 		}
 	}
+}
+
+//通过一个page结构体指针算出此页的pa
+u32 pg_to_addr(struct Page *page)
+{
+	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
+}
+
+struct Page *addr_to_pg(u32 addr)
+{
+	return (struct Page *)(((addr - VERTUAL_MEM - pt_begin) / PAGE_SIZE) / sizeof(struct Page) + pages);
 }
 
 void map(u32 va, u32 pa, u8 is_user)
