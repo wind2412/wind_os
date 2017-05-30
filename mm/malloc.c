@@ -101,15 +101,15 @@ void free(void *addr)
 		}
 		list_delete(&chunk->node);
 		if(chunk_head.next == &chunk_head){
-//			malloc_init();		//重新开始。	//会出问题。。。竟然意外跳了EIP？
-			alloc_page(1);
-			chunk_head.prev = chunk_head.next = &((struct Chunk *)heap_max)->node;
-			//设置这一页。
-			((struct Chunk *)heap_max)->allocated = 0;
-			((struct Chunk *)heap_max)->size = PAGE_SIZE;
-			((struct Chunk *)heap_max)->node.next = &chunk_head;
-			((struct Chunk *)heap_max)->node.prev = &chunk_head;
-			heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
+			malloc_init();		//重新开始。	//会出问题。。。竟然意外跳了EIP？
+//			alloc_page(1);
+//			chunk_head.prev = chunk_head.next = &((struct Chunk *)heap_max)->node;
+//			//设置这一页。
+//			((struct Chunk *)heap_max)->allocated = 0;
+//			((struct Chunk *)heap_max)->size = PAGE_SIZE;
+//			((struct Chunk *)heap_max)->node.next = &chunk_head;
+//			((struct Chunk *)heap_max)->node.prev = &chunk_head;
+//			heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
 		}
 	}
 
