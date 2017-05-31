@@ -77,10 +77,15 @@ u32 pg_to_addr(struct Page *page);
 struct Page *addr_to_pg(u32 addr);
 
 
-void map(u32 va, u32 pa, u8 is_user);
+struct pte_t *get_pte(struct pde_t *pde, u32 va);
 
-void unmap(u32 va);
+void map(struct pde_t *pde, u32 va, u32 pa, u8 is_user);
 
+void unmap(struct pde_t *pde, u32 va);
+
+u32 get_pg_addr_la(struct pte_t * pte);
+
+u32 get_pg_addr_pa(struct pte_t * pte);
 
 
 void print_memory();

@@ -193,26 +193,73 @@ void page_init()
 	}
 }
 
-//通过一个page结构体指针算出此页的pa
+//通过一个page结构体指针算出此页的la
 u32 pg_to_addr(struct Page *page)
 {
 	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
 }
 
+//通过la算出此页的Page *结构体
 struct Page *addr_to_pg(u32 addr)
 {
 	return (struct Page *)(((addr - VERTUAL_MEM - pt_begin) / PAGE_SIZE) / sizeof(struct Page) + pages);
 }
 
-void map(u32 va, u32 pa, u8 is_user)
+//得到pte指针。如果pde中没有设置的话，就设置pde。
+struct pte_t *get_pte(struct pde_t *pde, u32 la)
 {
-	extern struct pde_t *pd;
-//	if(pd[va >> 22] & 0x1 == 0){	//如果此页目录表没有设置	但其实页目录表已经设置完了。
-//
+//	if(pde[la >> 22] & 0x1 == 0){		//说明查询的va地址不对应任何pde页目录表项。
+//		if(!is_create)	return NULL;
+//		struct Page *pg;
+//		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。
+//		//设置页目录表		//注意页表早已设置好了。无需要再设。
+//		pg->ref = 1;
+//		memset((void *)pg_to_addr(pg), 0, PAGE_SIZE);		//清空整页。
+//		pde[la >> 22].os = 0;
+//		pde[la >> 22].sign = 0x7;
+//		pde[la >> 22].pt_addr = ;
 //	}
+	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];
 }
 
-void unmap(u32 va)
+//通过pte得到页的地址la
+u32 get_pg_addr_la(struct pte_t * pte)
 {
+	return (pte->page_addr << 12) + VERTUAL_MEM;
+}
 
+//通过pte得到页的地址pa
+u32 get_pg_addr_pa(struct pte_t * pte)
+{
+	return (pte->page_addr) << 12;
+}
+
+void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
+{
+	struct pte_t *pte = get_pte(pde, la);
+	struct Page *new_pg = addr_to_pg(la);
+	new_pg->ref += 1;
+	if((pte->sign & 0x1) == 1){		//要映射的pte已经被占用了 就要替换
+		struct Page *pg = addr_to_pg(get_pg_addr_la(pte));
+		if(pg == new_pg)	pg->ref -= 1;
+		else 				unmap(pde, get_pg_addr_la(pte));
+	}
+	pte->sign = is_user == 1 ? 0x7 : 0x3;
+	pte->page_addr = pa;
+	asm volatile ("invlpg (%0)" ::"r"(la));
+}
+
+void unmap(struct pde_t *pde, u32 la)
+{
+	struct pte_t *pte = get_pte(pde, la);
+	if((pte->sign & 0x1) == 1){
+		struct Page *pg = addr_to_pg(get_pg_addr_la(pte));
+		pg->ref -= 1;
+		if(pg->ref == 0){
+			free_page(pg, 1);
+		}
+		pte->page_addr = 0;
+		pte->sign = 0;
+		asm volatile ("invlpg (%0)" ::"r"(la));
+	}
 }
