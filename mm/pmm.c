@@ -206,19 +206,19 @@ struct Page *addr_to_pg(u32 addr)
 }
 
 //得到pte指针。如果pde中没有设置的话，就设置pde。
-struct pte_t *get_pte(struct pde_t *pde, u32 la)
+struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 {
-//	if(pde[la >> 22] & 0x1 == 0){		//说明查询的va地址不对应任何pde页目录表项。
-//		if(!is_create)	return NULL;
-//		struct Page *pg;
-//		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。
-//		//设置页目录表		//注意页表早已设置好了。无需要再设。
-//		pg->ref = 1;
-//		memset((void *)pg_to_addr(pg), 0, PAGE_SIZE);		//清空整页。
-//		pde[la >> 22].os = 0;
-//		pde[la >> 22].sign = 0x7;
-//		pde[la >> 22].pt_addr = ;
-//	}
+	if(pde[la >> 22] & 0x1 == 0){		//说明查询的va地址不对应任何pde页目录表项。
+		if(!is_create)	return NULL;
+		struct Page *pg;
+		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。
+		//设置页目录表		//注意页表早已设置好了。无需要再设。
+		pg->ref = 1;
+		memset((void *)pg_to_addr(pg), 0, PAGE_SIZE);		//清空整页。
+		pde[la >> 22].os = 0;
+		pde[la >> 22].sign = 0x7;
+		pde[la >> 22].pt_addr = (u32)pg >> 22;		//页目录表中添上刚刚申请的那个页！
+	}
 	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];
 }
 
