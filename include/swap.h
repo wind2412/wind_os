@@ -11,6 +11,8 @@
 #include <types.h>
 #include <x86.h>
 #include <stdio.h>
+#include <vmm.h>
+#include <debug.h>
 
 /**
  * 读取IDE盘。由于bootmain中自带，所以直接copy过来了（逃
@@ -31,9 +33,18 @@ void waitdisk(void);
 
 void swap_init();
 
-void readsect(void *dst, u32 offset, int ide_no, int sect_count);
+void readsect(void *dst, u32 sectno, int ide_no, int sect_count);
 
-void writesect(void *src, u32 offset, int ide_no, int sect_count);
+void writesect(void *src, u32 sectno, int ide_no, int sect_count);
+
+void swap_read(u32 dst_page_addr, struct pte_t *pte);
+
+void swap_write(u32 src_page_addr, struct pte_t *pte);
+
+void swap_in(struct mm_struct *mm, u32 fault_addr);
+
+void swap_out();
+
 
 
 #endif /* INCLUDE_SWAP_H_ */

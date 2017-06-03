@@ -5,7 +5,7 @@
  *      Author: zhengxiaolin
  */
 
-#include "../include/swap.h"
+#include <swap.h>
 
 struct ide_t swap = {
 	.ideno = 1,
@@ -42,14 +42,15 @@ void swap_init()
 }
 
 // Read a single sector at offset into dst.		//offset is the sector number. --by wind.
-void readsect(void *dst, u32 offset, int ide_no, int sect_count) {
+void readsect(void *dst, u32 sectno, int ide_no, int sect_count)
+{
 	// Issue command.
 	waitdisk();
 	outb(0x1F2, sect_count);   // sect count
-	outb(0x1F3, offset);
-	outb(0x1F4, offset >> 8);
-	outb(0x1F5, offset >> 16);
-	outb(0x1F6, (offset >> 24) | 0xE0 | ((ide_no & 0x1) << 4) );
+	outb(0x1F3, sectno);
+	outb(0x1F4, sectno >> 8);
+	outb(0x1F5, sectno >> 16);
+	outb(0x1F6, (sectno >> 24) | 0xE0 | ((ide_no & 0x1) << 4) );
 	outb(0x1F7, 0x20);  // cmd 0x20 - read sectors
 
 	// Read data.
@@ -59,14 +60,15 @@ void readsect(void *dst, u32 offset, int ide_no, int sect_count) {
 	}
 }
 
-void writesect(void *src, u32 offset, int ide_no, int sect_count) {
+void writesect(void *src, u32 sectno, int ide_no, int sect_count)
+{
 	// Issue command.
 	waitdisk();
 	outb(0x1F2, sect_count);   // sect count
-	outb(0x1F3, offset);
-	outb(0x1F4, offset >> 8);
-	outb(0x1F5, offset >> 16);
-	outb(0x1F6, (offset >> 24) | 0xE0 | ((ide_no & 0x1) << 4) );
+	outb(0x1F3, sectno);
+	outb(0x1F4, sectno >> 8);
+	outb(0x1F5, sectno >> 16);
+	outb(0x1F6, (sectno >> 24) | 0xE0 | ((ide_no & 0x1) << 4) );
 	outb(0x1F7, 0x30);  // cmd 0x30 - write sectors
 
 	// Read data.
@@ -76,5 +78,41 @@ void writesect(void *src, u32 offset, int ide_no, int sect_count) {
 	}
 }
 
+void swap_read(u32 dst_page_addr, struct pte_t *pte)
+{
+	readsect((void *)dst_page_addr, ((*(u32*)pte) >> 8) * PAGE_SIZE/SECTSIZE, 1, PAGE_SIZE/SECTSIZE);		//struct不能转为int。所以必须把struct*转为int*再解引用。
+}
 
+void swap_write(u32 src_page_addr, struct pte_t *pte)
+{
+	writesect((void *)src_page_addr, ((*(u32*)pte) >> 8) * PAGE_SIZE/SECTSIZE, 1, PAGE_SIZE/SECTSIZE);
+}
 
+//把页从磁盘给换进来。		fault_addr必然是va。
+void swap_in(struct mm_struct *mm, u32 fault_addr)
+{
+	struct pte_t *wrong_pte = get_pte(mm->pde, fault_addr, 0);
+	if(wrong_pte == NULL)	panic("wrong!!! swap_in pte is NULL!!\n");
+	struct Page *page = alloc_page(1);
+	swap_read(pg_to_addr_la(page), wrong_pte);		//向刚申请的page中，经由wrong_pte中存放的扇区号，然后读入磁盘的那一页，写到page上。
+	//重新设置pte
+//	wrong_pte->sign = 0x3;		//可能在用户模式下会有问题。		//要直接调用map
+//	wrong_pte->page_addr = (pg_to_addr(page) >> 12);
+	map(mm->pde, get_pg_addr_la(wrong_pte), fault_addr, 1);
+	page->va = fault_addr;
+	//把这个新换进来的页加入到FIFO的最后。
+	list_insert_before(&mm->vm_fifo, &page->node);
+}
+
+void swap_out(struct mm_struct *mm, int n)
+{
+	struct list_node *begin = &mm->vm_fifo;
+	while(begin->prev != &mm->vm_fifo && n > 0){
+		struct Page *page = GET_OUTER_STRUCT_PTR(begin->next, struct Page, node);
+//		swap_write(pg_to_addr_la(page), );
+
+		free_page(page, 1);
+		begin = begin->prev;
+		n --;
+	}
+}

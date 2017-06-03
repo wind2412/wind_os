@@ -60,6 +60,7 @@ struct Page{
 	int ref;		//引用计数
 	u32 flags;
 	u32 free_pages;
+	u32 va;		//用于fifo. //为什么这里要单独设置一个page的va呢？原因看下一句吧。有时候，page->va和pg_to_addr(page)并不同，这是因为：pg_to_addr只能转换“内核之后的空闲内存区”的地址！！而无法转换之前的！！如果我访问0x1000，那么根本无法转换！！所以ucore用了很巧妙的手法来解决这个问题。
 	struct list_node node;
 };
 
@@ -72,7 +73,9 @@ struct Page *alloc_page(int n);
 
 void free_page(struct Page *, int n);
 
-u32 pg_to_addr(struct Page *page);
+u32 pg_to_addr_la(struct Page *page);
+
+u32 pg_to_addr_pa(struct Page *page);
 
 struct Page *addr_to_pg(u32 addr);
 
@@ -87,7 +90,6 @@ u32 get_pg_addr_la(struct pte_t * pte);
 
 u32 get_pg_addr_pa(struct pte_t * pte);
 
-void do_swap(u32 cr2);
 
 
 void print_memory();

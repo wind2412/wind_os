@@ -23,6 +23,7 @@ struct mm_struct{
 	struct vma_struct *cache;
 	u32 num;
 	struct list_node node;
+	struct list_node vm_fifo;		//页替换算法的链表  即victim Page的结构体链表
 };
 
 struct vma_struct{
@@ -43,5 +44,9 @@ void free_vma(struct vma_struct *addr);
 
 void free_mm(struct mm_struct *addr);
 
+
+void page_fault(struct idtframe *frame);
+
+void do_swap(u32 cr2);
 
 #endif /* INCLUDE_VMM_H_ */

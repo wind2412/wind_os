@@ -78,84 +78,9 @@ void print_memory()
 	}
 }
 
-//copy from hx_kernel
-void page_fault(struct idtframe *frame)
-{
-    u32 cr2;
-    asm volatile ("mov %%cr2, %0" : "=r" (cr2));
-
-    printf("Page fault at EIP %x, virtual faulting address %x\n", frame->eip, cr2);
-    printf("Error code: %x\n", frame->errorCode);
-
-    // bit 0 为 0 指页面不存在内存里
-    if (frame->errorCode & 0x4) {
-        printf("In user mode.\n");
-    } else {
-        printf("In kernel mode.\n");
-    }
-    // bit 1 为 0 表示读错误，为 1 为写错误
-    if (frame->errorCode & 0x2) {
-        printf("Write error.\n");
-    } else {
-        printf("Read error.\n");
-    }
-
-    switch (frame->errorCode & 0x3) {
-    	case 0:
-    		//read一个not present的页面，  这样应该从磁盘拿来新的页面
-    		do_swap(cr2);
-    		break;
-    	case 1:
-    		//read一个present的页面 竟然还能出错？
-    		if((frame->errorCode & 0x4) == 1){
-    			//此处查阅资料，我在这里添加了U/S保护的确认。
-    			//如果errorCode & 0x1 == 1 则是：由于保护特权级别太高，造成无法读取，进而把bit1归0显示读错误。
-    			//stackover flow: https://stackoverflow.com/questions/9759439/page-fault-shortage-of-page-or-access-violation
-    			printf("The privilege of this page is so high～, you read it in user mode.\n");
-    			while(1);		//宕机
-    		}else{
-    			printf("cannot be there...\n");
-    			while(1);
-    		}
-    		break;
-    	case 2:
-    		//write一个not present的页面， 这样应该从磁盘拿来新的页面
-    		do_swap(cr2);
-    		break;
-    	case 3:
-    		//write一个present的页面，页保护异常。这样应该COW。
-
-    		//具体实现先行搁置吧。？？？？？？？？？？？？？？？？？？？？？？？？？？？
-
-    		if((frame->errorCode & 0x4) == 1){
-    			printf("The privilege of this page is so high～, you read it in user mode.\n");
-    			while(1);
-    		}
-
-    		break;
-    }
-
-    // bit 3 为 1 表示错误是由保留位覆盖造成的
-    if (frame->errorCode & 0x8) {
-        printf("Reserved bits being overwritten.\n");
-    }
-    // bit 4 为 1 表示错误发生在取指令的时候
-    if (frame->errorCode & 0x10) {
-        printf("The fault occurred during an instruction fetch.\n");
-    }
-
-    printf("esp: %x\n", frame->esp);
-
-}
-
-void do_swap(u32 cr2)
-{
-	extern struct mm_struct *mm;
-	printf("swap...\n");
-}
-
 void pmm_init()
 {
+	extern void page_fault(struct idtframe *frame);
 	set_handler(14, page_fault);		//设置页异常中断函数
 	print_memory();
 	page_init();
@@ -208,18 +133,23 @@ void page_init()
 
 			//重新分页!
 			extern struct pde_t *pd;
-			extern struct pte_t *snd;
+//			extern struct pte_t *snd;
 			//原先已经有过的，保持原样就可以，不用在设置了。
 			//把内核结束开始的新一页(free_mem page空间)到所有空闲结束的所有映射。	//原先0xC0000000~0xC0400000的已经全部映射了。我们从0xC0400000开始吧。
-			for(int i = ((u32)(pt_begin + VERTUAL_MEM) >> 22) + 1; i < ((u32)(pt_end + VERTUAL_MEM) >> 22); i ++){
-				pd[i].pt_addr = ((u32)&new_page_freemem_table[PAGE_SIZE * i] - VERTUAL_MEM) >> 12;
-				pd[i].os = 0;
-				pd[i].sign = 0x07;
-			}
-			for(int i = 0; i < MAX_PAGE_NUM; i ++){
-				new_page_freemem_table[i].page_addr = i + 1024;
-				new_page_freemem_table[i].os = 0;
-				new_page_freemem_table[i].sign = 0x03;
+//			for(int i = ((u32)(pt_begin + VERTUAL_MEM) >> 22) + 1; i < ((u32)(pt_end + VERTUAL_MEM) >> 22); i ++){
+//				pd[i].pt_addr = ((u32)&new_page_freemem_table[PAGE_SIZE * i] - VERTUAL_MEM) >> 12;
+//				pd[i].os = 0;
+//				pd[i].sign = 0x07;
+//			}
+//			for(int i = 0; i < MAX_PAGE_NUM; i ++){
+//				new_page_freemem_table[i].page_addr = i + 1024;
+//				new_page_freemem_table[i].os = 0;
+//				new_page_freemem_table[i].sign = 0x03;
+//			}
+			for(int i = (u32)(pt_begin + VERTUAL_MEM); i < (u32)(pt_end + VERTUAL_MEM); i += PAGE_SIZE){
+				struct pte_t *pte = get_pte(pd, i, 1);
+				pte->sign = 0x3;
+				pte->page_addr = ((i - VERTUAL_MEM) >> 12);
 			}
 			//设置页目录表
 			asm volatile ("movl %0, %%cr3"::"r"(pd));
@@ -228,9 +158,15 @@ void page_init()
 }
 
 //通过一个page结构体指针算出此页的la
-u32 pg_to_addr(struct Page *page)
+u32 pg_to_addr_la(struct Page *page)
 {
 	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
+}
+
+//通过一个page结构体指针算出此页的pa
+u32 pg_to_addr_pa(struct Page *page)
+{
+	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin;
 }
 
 //通过la算出此页的Page *结构体
@@ -245,10 +181,10 @@ struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 	if((pde[la >> 22].sign & 0x1) == 0){		//说明查询的va地址不对应任何pde页目录表项。
 		if(!is_create)	return NULL;
 		struct Page *pg;
-		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。
+		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。				//虽然alloc_page了，但是不能设置页目录表为swappable，因为页目录表太过重要，不能交换为妙。
 		//设置页目录表		//注意页表早已设置好了。无需要再设。
 		pg->ref = 1;
-		memset((void *)pg_to_addr(pg), 0, PAGE_SIZE);		//清空整页。
+		memset((void *)pg_to_addr_la(pg), 0, PAGE_SIZE);		//清空整页。
 		pde[la >> 22].os = 0;
 		pde[la >> 22].sign = 0x7;
 		pde[la >> 22].pt_addr = (u32)pg >> 22;		//页目录表中添上刚刚申请的那个页！
