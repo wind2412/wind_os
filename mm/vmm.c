@@ -9,6 +9,15 @@
 
 struct mm_struct *mm;		//全局的mm
 
+int is_vmm_inited = 0;
+
+void vmm_init()
+{
+	extern struct pde_t *pd;
+	mm = create_mm(pd);
+	is_vmm_inited = 1;
+}
+
 struct mm_struct *create_mm(struct pde_t *pde)
 {
 	struct mm_struct * mm = (struct mm_struct *)malloc(sizeof(struct mm_struct));
@@ -150,21 +159,23 @@ void page_fault(struct idtframe *frame)
 
 }
 
-void do_swap(u32 cr2)
+//只有在缺页时创建的新page才会被swap out。即便是根本没在磁盘上，而是[根本没有]的页面。
+void do_swap(u32 cr2)		//从磁盘换进来 fault_pg对应的pte上写的扇区号 对应的磁盘上4096B
 {
 	u32 fault_pg_addr = ROUNDDOWN(cr2);
 
 	struct pte_t *pte = get_pte(mm->pde, fault_pg_addr, 1);	//1.如果页目录表有的话，那么返回。
-															//2.如果页目录表还没有的话，说明正在指定访问一个比较偏的内存位置。需要新建立一个目录表项，通过申请一个页。
-	if(pte->page_addr == 0 && pte->sign == 0){		//1,2->如果页表也没有的话，那就只能另申请一个页来存放页表了。(看来访问的地址确实挺偏的)
-		struct Page *pt_pg = alloc_page(1);
-		if(pt_pg == NULL)	return;	//panic更好
-		pt_pg->va = fault_pg_addr;		//新申请页表的所在页要和访问的目的页的page->va使用同一个fault_pg_addr！这里一定要注意。因为这个va会在swap_out中使用.
-		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pt_pg), 1);
+															//2.如果页目录表还没有的话，说明正在指定访问一个比较偏的内存位置。需要新建立一个pde目录表项，通过申请一个pte页。
+	if(pte->page_addr == 0 && pte->sign == 0){		//1,2->如果页表没有绑定页page的话，那就只能另申请一个page页并绑定到pte了。而且因为pte毛都没有，所以根本就不在磁盘上。
+		struct Page *pg = alloc_page(1);
+		if(pg == NULL)	return;	//panic更好
+		pg->va = fault_pg_addr;		//这个va会在swap_out中使用.
+		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), 1);
 		//把新alloc的page加到vm_fifo列表中
-		list_insert_before(&mm->vm_fifo, &pt_pg->node);
+		list_insert_before(&mm->vm_fifo, &pg->node);
+	}else{											//3.如果已经绑定页面的话，那么说明在磁盘中了。换进来。
+		extern void swap_in(struct mm_struct *mm, u32 fault_addr);
+		swap_in(mm, fault_pg_addr);
 	}
-
-	swap_in(mm, fault_pg_addr);
 
 }

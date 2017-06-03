@@ -39,11 +39,11 @@ void writesect(void *src, u32 sectno, int ide_no, int sect_count);
 
 void swap_read(u32 dst_page_addr, struct pte_t *pte);
 
-void swap_write(u32 src_page_addr, struct pte_t *pte);
+void swap_write(u32 src_page_addr, int sectno);
 
 void swap_in(struct mm_struct *mm, u32 fault_addr);
 
-void swap_out();
+void swap_out(struct mm_struct *mm, int n);
 
 
 

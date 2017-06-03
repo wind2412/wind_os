@@ -83,16 +83,15 @@ void swap_read(u32 dst_page_addr, struct pte_t *pte)
 	readsect((void *)dst_page_addr, ((*(u32*)pte) >> 8) * PAGE_SIZE/SECTSIZE, 1, PAGE_SIZE/SECTSIZE);		//struct不能转为int。所以必须把struct*转为int*再解引用。
 }
 
-void swap_write(u32 src_page_addr, struct pte_t *pte)
+void swap_write(u32 src_page_addr, int sectno)
 {
-	writesect((void *)src_page_addr, ((*(u32*)pte) >> 8) * PAGE_SIZE/SECTSIZE, 1, PAGE_SIZE/SECTSIZE);
+	writesect((void *)src_page_addr, sectno, 1, PAGE_SIZE/SECTSIZE);
 }
 
 //把页从磁盘给换进来。		fault_addr必然是va。
 void swap_in(struct mm_struct *mm, u32 fault_addr)
 {
 	struct pte_t *wrong_pte = get_pte(mm->pde, fault_addr, 0);
-	if(wrong_pte == NULL)	panic("wrong!!! swap_in pte is NULL!!\n");
 	struct Page *page = alloc_page(1);
 	swap_read(pg_to_addr_la(page), wrong_pte);		//向刚申请的page中，经由wrong_pte中存放的扇区号，然后读入磁盘的那一页，写到page上。
 	//重新设置pte
@@ -108,11 +107,16 @@ void swap_out(struct mm_struct *mm, int n)
 {
 	struct list_node *begin = &mm->vm_fifo;
 	while(begin->prev != &mm->vm_fifo && n > 0){
-		struct Page *page = GET_OUTER_STRUCT_PTR(begin->next, struct Page, node);
-//		swap_write(pg_to_addr_la(page), );
+		struct Page *page = GET_OUTER_STRUCT_PTR(begin->next, struct Page, node);	//要被换出的页面。
+		struct pte_t *pte = get_pte(mm->pde, page->va, 0);
+		swap_write(pg_to_addr_la(page), ((page->va / PAGE_SIZE)+1) * PAGE_SIZE/SECTSIZE);		//ucore的+1非常漂亮！完美的解决了“不在磁盘中”和“第0个页面0x0～0x1000”高地址全都是0的冲突情况。
+		pte->sign = 0;
+		pte->page_addr = 0;
+		*(u32 *)(&pte) = ((page->va / PAGE_SIZE + 1) << 8);		//按照交换磁盘page的方式设置pte的高24位。
 
 		free_page(page, 1);
 		begin = begin->prev;
 		n --;
+
 	}
 }

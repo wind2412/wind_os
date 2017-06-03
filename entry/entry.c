@@ -15,6 +15,7 @@
 #include <keyboard.h>
 #include <debug.h>
 #include <pmm.h>
+#include <vmm.h>
 #include <swap.h>
 #include <malloc.h>
 
@@ -80,6 +81,7 @@ void init()
 	pmm_init();		//因为这里有设置中断向量表，因此一定要在idt_init之后进行！！！
 	swap_init();
 	malloc_init();
+	vmm_init();
 	pic_init();
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......

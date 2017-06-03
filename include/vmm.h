@@ -33,6 +33,8 @@ struct vma_struct{
 	struct list_node node;
 };
 
+void vmm_init();
+
 struct mm_struct *create_mm(struct pde_t *pde);
 
 struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end);

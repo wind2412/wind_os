@@ -29,6 +29,15 @@ struct Page *alloc_page(int n)
 			GET_OUTER_STRUCT_PTR(del, struct Page, node)->free_pages = remain_blocks;	//更新split之后的剩下的pages数目
 			GET_OUTER_STRUCT_PTR(del, struct Page, node)->flags = 1;	//设为已用
 			free_pages.free_page_num -= n;
+
+			//每alloc一个page，需要换出去一个page以求均衡
+			extern int is_vmm_inited;
+			if(is_vmm_inited == 1){
+				extern struct mm_struct *mm;
+				extern void swap_out(struct mm_struct *mm, int n);
+				swap_out(mm, 1);
+			}
+
 			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回va更好。
 		}
 		ptr = ptr->next;
@@ -181,7 +190,7 @@ struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 	if((pde[la >> 22].sign & 0x1) == 0){		//说明查询的va地址不对应任何pde页目录表项。
 		if(!is_create)	return NULL;
 		struct Page *pg;
-		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。				//虽然alloc_page了，但是不能设置页目录表为swappable，因为页目录表太过重要，不能交换为妙。
+		if((pg = alloc_page(1)) == NULL)	return NULL;	//二级页表已经设置完毕，无需在设置。				//虽然alloc_page了，但是不能设置页表pte为swappable，因为页表太过重要，不能交换为妙。
 		//设置页目录表		//注意页表早已设置好了。无需要再设。
 		pg->ref = 1;
 		memset((void *)pg_to_addr_la(pg), 0, PAGE_SIZE);		//清空整页。

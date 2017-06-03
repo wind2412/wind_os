@@ -144,7 +144,7 @@ void print_backtrace()
     {
         const char *func_name;
         if((func_name = get_func_name(*return_addr)) != NULL)
-            printf("0x%x, %s\n", *return_addr, get_func_name(*return_addr)); //此函数不要，直接索引到print_backtrace()外边的函数
+            printf("%x, %s\n", *return_addr, get_func_name(*return_addr)); //此函数不要，直接索引到print_backtrace()外边的函数
         ebp = (u32 *)*ebp;
         return_addr = ebp + 1;
     }
