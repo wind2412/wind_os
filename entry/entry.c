@@ -15,7 +15,9 @@
 #include <keyboard.h>
 #include <debug.h>
 #include <pmm.h>
+#include <swap.h>
 #include <malloc.h>
+
 
 //见ucore指导书：0～640KB是一开始空闲的，0~4kb全都当做页目录表，5~8,9~12,13~16,17~20kb当做页表（临时）（Linux0.11实现）
 __attribute__((section(".init.data"))) struct pde_t *pd  = (struct pde_t *)0x0000;
@@ -76,6 +78,7 @@ void init()
 	gdt_init();
 	idt_init();
 	pmm_init();		//因为这里有设置中断向量表，因此一定要在idt_init之后进行！！！
+	swap_init();
 	malloc_init();
 	pic_init();
 	tss_init();

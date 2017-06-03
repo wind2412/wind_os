@@ -17,6 +17,8 @@ inline u8 inb(u16 port) __attribute__((always_inline));
 
 inline void insl(u32 port, void *addr, int cnt) __attribute__((always_inline));
 
+inline void outsl(u32 port, const void *addr, int cnt) __attribute__((always_inline));
+
 inline void outw(u16 port, u16 data) __attribute__((always_inline));
 
 /*************************************************************************/
@@ -53,6 +55,17 @@ insl(u32 port, void *addr, int cnt)
             : "=D" (addr), "=c" (cnt)
             : "d" (port), "0" (addr), "1" (cnt)
             : "memory", "cc");
+}
+
+inline void
+outsl(u32 port, const void *addr, int cnt)
+{
+    asm volatile (
+			"cld;"
+			"repne; outsl;"
+			: "=S" (addr), "=c" (cnt)
+			: "d" (port), "0" (addr), "1" (cnt)
+			: "memory", "cc");
 }
 
 inline void

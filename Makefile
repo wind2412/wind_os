@@ -23,11 +23,13 @@ DIR_BIN := ./bin/
 all : sign $(C_OBJ) $(S_OBJ) bin/bootloader bin/wind_os.img clean_obj
 	@echo clean trunk objs.
 
-bin/wind_os.img : bin/bootloader bin/wind_os_kern
+bin/wind_os.img : bin/bootloader bin/wind_os_kern swap
 	@dd if=/dev/zero of=$@ count=1000  # 1000 blocks each 512B as a page and filled wind_os.img with bit '0'.
 	@dd if=$(DIR_BIN)bootloader of=$@ conv=notrunc  # if don't use 'conv=notrunc' the .img file will shrink to the size of bootloader of 512B!!
 	@dd if=$(DIR_BIN)wind_os_kern of=$@ seek=1 conv=notrunc  # don't overlap the bootloader of the 1st block. with seek=1 it will write in .img at the 2nd block of 512B.
 
+swap:
+	@dd if=/dev/zero of=$(DIR_BIN)swap.img bs=10000 count=128  # (bs)blocksize = 10kB count=128 => 128 blocks each of them is 1M
 
 sign : sign.c
 	@gcc -o $@ $<
@@ -57,10 +59,10 @@ bin/wind_os_kern: $(filter-out $(BOOT_EXCEPT), $(C_OBJ) $(S_OBJ))
 
 
 qemu:
-	@qemu -hda $(DIR_BIN)wind_os.img -monitor stdio  # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
+	@qemu -hda $(DIR_BIN)wind_os.img -drive file=$(DIR_BIN)swap.img,media=disk,cache=writeback -monitor stdio  # boot from the hard disk with '-boot c' or '-hda'. if it is a floppy.img we'd use '-boot a' or 'fda'.
 
 debug:
-	@qemu -S -s -hda $(DIR_BIN)wind_os.img & # mdzz!!!这里调了好长时间。。必须加上&表示后台运行才行！！究竟是什么原理。。。。不加，gdb会卡住。。。
+	@qemu -S -s -hda $(DIR_BIN)wind_os.img -drive file=$(DIR_BIN)swap.img,media=disk,cache=writeback& # mdzz!!!这里调了好长时间。。必须加上&表示后台运行才行！！究竟是什么原理。。。。不加，gdb会卡住。。。
 	@cgdb -d i386-elf-gdb -q -x $(DIR_BIN)gdbinit  # if -nx is not read any .gdbinit file, the -x will be read the .gdbinit file.
 #.....如果下边有名叫debug的文件夹....会各种make debug时候提示“debug has been updated”......所以必须改名为debug_.....
 
