@@ -30,7 +30,7 @@ void swap_init()
 
 	//read identification space of this device
 	u32 buffer[128];
-	insl(0x1F0, buffer, sizeof(buffer));
+	insl(0x1F0, buffer, sizeof(buffer)/sizeof(u32));			//这里出了问题！！没有除sizeof(u32)...导致全被清空了....
 	swap.cmdsets = *(u32 *)((u32)buffer + 164);
 	if(swap.cmdsets & 0x4000000){
 		swap.sect_num = *(u32 *)((u32)buffer + 200);
@@ -38,7 +38,7 @@ void swap_init()
 		swap.sect_num = *(u32 *)((u32)buffer + 120);
 	}
 
-	printf("swap's sect_num: %d\b", swap.sect_num);
+	printf("swap's sect_num: %d\n", swap.sect_num);
 }
 
 // Read a single sector at offset into dst.		//offset is the sector number. --by wind.
