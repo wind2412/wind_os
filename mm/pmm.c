@@ -11,8 +11,6 @@ struct e820map *memmap = (struct e820map *) ( 0x8000 + VERTUAL_MEM );
 
 struct free_area free_pages;
 
-int alloc_pg_num = 0;		//这个变量也起到通过pt_begin位置在分完页进行不断alloc_page之后，计算heap_max空闲空间位置。
-
 struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已。
 {
 	if(n > free_pages.free_page_num)	return NULL;
@@ -39,8 +37,6 @@ struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已
 				extern void swap_out(struct mm_struct *mm, int n);
 				swap_out(mm, 1);
 			}
-
-			alloc_pg_num ++;
 
 			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回la更好。
 		}
@@ -109,7 +105,6 @@ void pmm_init()
 
 struct Page *pages;		//pages的起始位置
 u32 pt_begin;			//空闲空间的起始位置  但是最后实际上，是页表起始的位置。
-u32 malloc_begin;			//这里才是真·空闲空间起始位置
 
 //struct pde_t new_pd[1024];		//new_pd失败了......TAT
 
@@ -169,8 +164,6 @@ void page_init()
 				pte->sign = 0x3;
 				pte->page_addr = ((i - VERTUAL_MEM) >> 12);
 			}
-			malloc_begin = pt_begin + alloc_pg_num * PAGE_SIZE;		//这才是真正的空闲空间的其实位置......
-			printf("=====%x=====\n", malloc_begin);
 			//设置页目录表
 			asm volatile ("movl %0, %%cr3"::"r"(pd));
 		}

@@ -170,6 +170,7 @@ void do_swap(u32 cr2)		//从磁盘换进来 fault_pg对应的pte上写的扇区�
 															//2.如果页目录表还没有的话，说明正在指定访问一个比较偏的内存位置。需要新建立一个pde目录表项，通过申请一个pte页。
 	if(pte->page_addr == 0 && pte->sign == 0){		//1,2->如果页表没有绑定页page的话，那就只能另申请一个page页并绑定到pte了。而且因为pte毛都没有，所以根本就不在磁盘上。
 		struct Page *pg = alloc_page(1);
+		printf("no page linked. so alloc a page, la: %x\n", pg_to_addr_la(pg));
 		if(pg == NULL)	return;	//panic更好
 		pg->va = fault_pg_addr;		//这个va会在swap_out中使用.
 		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), 1);
