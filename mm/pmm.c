@@ -13,7 +13,7 @@ struct free_area free_pages;
 
 int alloc_pg_num = 0;		//这个变量也起到通过pt_begin位置在分完页进行不断alloc_page之后，计算heap_max空闲空间位置。
 
-struct Page *alloc_page(int n)
+struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已。
 {
 	if(n > free_pages.free_page_num)	return NULL;
 	struct list_node *ptr = &free_pages.head;
@@ -170,6 +170,7 @@ void page_init()
 				pte->page_addr = ((i - VERTUAL_MEM) >> 12);
 			}
 			malloc_begin = pt_begin + alloc_pg_num * PAGE_SIZE;		//这才是真正的空闲空间的其实位置......
+			printf("=====%x=====\n", malloc_begin);
 			//设置页目录表
 			asm volatile ("movl %0, %%cr3"::"r"(pd));
 		}

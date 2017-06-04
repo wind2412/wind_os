@@ -99,7 +99,7 @@ void init()
 
 	print_backtrace();		//打印堆栈～debug成功。
 
-	test_malloc();
+//	test_malloc();
 	test_swap();
 
 	while(1);
