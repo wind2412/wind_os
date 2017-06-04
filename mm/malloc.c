@@ -44,7 +44,7 @@ void *malloc(u32 size)
 
 			//对"此chunk"进行设置
 			chunk->allocated = 1;
-			chunk->size = total_alloc_size;
+			chunk->size = total_alloc_size - sizeof(struct Chunk);
 
 			return (void *)((u32)chunk + sizeof(struct Chunk));
 		}else{	//继续遍历还有哪个页能容纳下所需要的size
