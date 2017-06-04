@@ -13,8 +13,10 @@ u32 heap_max;		//malloc内存开始的地方
 
 void malloc_init()
 {
-	extern u32 pt_begin;		//全局情况下，全局的extern变量不能赋给另一个全局变量。error：(extern variable) pt_begin is not constant.
-	heap_max = pt_begin;
+//	extern u32 pt_begin;		//全局情况下，全局的extern变量不能赋给另一个全局变量。error：(extern variable) pt_begin is not constant.
+//	heap_max = pt_begin;		//不可以！！千万不可以！！pmm_init在先，pt_begin后边全是一堆页表，这时候heap_max再是pt_begin，那不覆盖了页表了吗？？调试了一个下午TAT
+	extern u32 malloc_begin;		//真·空闲位置	起始地址
+	heap_max = malloc_begin;
 	chunk_head.next = &((struct Chunk *)heap_max)->node;
 	chunk_head.prev = &((struct Chunk *)heap_max)->node;
 	//设置第一块malloc(其实没有malloc，只是为了编程方便)

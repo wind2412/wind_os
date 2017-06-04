@@ -11,6 +11,8 @@ struct e820map *memmap = (struct e820map *) ( 0x8000 + VERTUAL_MEM );
 
 struct free_area free_pages;
 
+int alloc_pg_num = 0;		//这个变量也起到通过pt_begin位置在分完页进行不断alloc_page之后，计算heap_max空闲空间位置。
+
 struct Page *alloc_page(int n)
 {
 	if(n > free_pages.free_page_num)	return NULL;
@@ -38,7 +40,9 @@ struct Page *alloc_page(int n)
 				swap_out(mm, 1);
 			}
 
-			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回va更好。
+			alloc_pg_num ++;
+
+			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回la更好。
 		}
 		ptr = ptr->next;
 	}
@@ -104,7 +108,8 @@ void pmm_init()
 //struct pte_t new_page_freemem_table[MAX_PAGE_NUM] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
 
 struct Page *pages;		//pages的起始位置
-u32 pt_begin;			//空闲空间的起始位置
+u32 pt_begin;			//空闲空间的起始位置  但是最后实际上，是页表起始的位置。
+u32 malloc_begin;			//这里才是真·空闲空间起始位置
 
 //struct pde_t new_pd[1024];		//new_pd失败了......TAT
 
@@ -164,6 +169,7 @@ void page_init()
 				pte->sign = 0x3;
 				pte->page_addr = ((i - VERTUAL_MEM) >> 12);
 			}
+			malloc_begin = pt_begin + alloc_pg_num * PAGE_SIZE;		//这才是真正的空闲空间的其实位置......
 			//设置页目录表
 			asm volatile ("movl %0, %%cr3"::"r"(pd));
 		}
@@ -206,9 +212,9 @@ struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 		memset((void *)pg_to_addr_la(pg), 0, PAGE_SIZE);		//清空整页。
 		pde[la >> 22].os = 0;
 		pde[la >> 22].sign = 0x7;
-		pde[la >> 22].pt_addr = (pg_to_addr_la(pg) >> 22);		//页目录表中添上刚刚申请的那个页！
+		pde[la >> 22].pt_addr = (pg_to_addr_la(pg) >> 12);		//页目录表中添上刚刚申请的那个页！		//注意！！pde的索引是la >>[22]，而内部存放的值是pte的地址，只>>[12]即可！！
 	}
-	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];
+	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12)))[(la >> 12) & 0x3ff];
 }
 
 //通过pte得到页的地址la
@@ -226,7 +232,7 @@ u32 get_pg_addr_pa(struct pte_t * pte)
 void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
 {
 	struct pte_t *pte = get_pte(pde, la, 1);
-	struct Page *new_pg = la_addr_to_pg(la);
+	struct Page *new_pg = pa_addr_to_pg(pa);
 	new_pg->ref += 1;
 	if((pte->sign & 0x1) == 1){		//要映射的pte已经被占用了 就要替换
 		struct Page *pg = la_addr_to_pg(get_pg_addr_la(pte));
@@ -234,7 +240,7 @@ void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
 		else 				unmap(pde, get_pg_addr_la(pte));
 	}
 	pte->sign = is_user == 1 ? 0x7 : 0x3;
-	pte->page_addr = pa;
+	pte->page_addr = (pa >> 12);
 	asm volatile ("invlpg (%0)" ::"r"(la));
 }
 
