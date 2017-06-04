@@ -95,21 +95,22 @@ void page_fault(struct idtframe *frame)
     u32 cr2;
     asm volatile ("mov %%cr2, %0" : "=r" (cr2));
 
-    printf("Page fault at EIP %x, virtual faulting address %x\n", frame->eip, cr2);
-    printf("Error code: %x\n", frame->errorCode);
+    printf("page_fault triggered==> at cr2: %x.\n", cr2);
+//    printf("Page fault at EIP %x, virtual faulting address %x\n", frame->eip, cr2);
+//    printf("Error code: %x\n", frame->errorCode);
 
-    // bit 0 为 0 指页面不存在内存里
-    if (frame->errorCode & 0x4) {
-        printf("In user mode.\n");
-    } else {
-        printf("In kernel mode.\n");
-    }
-    // bit 1 为 0 表示读错误，为 1 为写错误
-    if (frame->errorCode & 0x2) {
-        printf("Write error.\n");
-    } else {
-        printf("Read error.\n");
-    }
+//    // bit 0 为 0 指页面不存在内存里
+//    if (frame->errorCode & 0x4) {
+//        printf("In user mode.\n");
+//    } else {
+//        printf("In kernel mode.\n");
+//    }
+//    // bit 1 为 0 表示读错误，为 1 为写错误
+//    if (frame->errorCode & 0x2) {
+//        printf("Write error.\n");
+//    } else {
+//        printf("Read error.\n");
+//    }
 
     switch (frame->errorCode & 0x3) {
     	case 0:
@@ -156,7 +157,7 @@ void page_fault(struct idtframe *frame)
         printf("The fault occurred during an instruction fetch.\n");
     }
 
-    printf("esp: %x\n", frame->esp);
+//    printf("esp: %x\n", frame->esp);
 
 }
 
