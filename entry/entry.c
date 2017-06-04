@@ -35,6 +35,10 @@ void init();
 __attribute__((section(".init.text"))) void kern_init()
 {
 	extern u8 kern_start[];
+//	memset(pd, 0, PAGE_SIZE);		//此处不能使用函数。只能用for循环了TAT
+	for(int i = 0; i < PAGE_SIZE/4; i ++){		//没想到0x0竟然是乱七八糟的脏数据......必须要清空，否则日后检查某个pde是否是0，因为是UB，没准是什么值，就会崩掉。
+		*((u32 *)pd + i) = 0;
+	}
 	//组建页目录表
 	pd[0].pt_addr = (u32)fst >> 12;
 	pd[0].os = 0;

@@ -57,7 +57,7 @@ struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end)
 
 struct vma_struct *find_vma(struct mm_struct *mm, u32 addr)
 {
-	if(mm->cache->vmm_start < addr && mm->cache->vmm_end > addr)	return mm->cache;		//从cache中试着读取一波（局部性原理）
+	if(mm->cache != NULL && mm->cache->vmm_start < addr && mm->cache->vmm_end > addr)	return mm->cache;		//从cache中试着读取一波（局部性原理）
 	struct list_node *begin = &mm->node;
 	while(begin->next != &mm->node){
 		struct vma_struct *temp = GET_OUTER_STRUCT_PTR(begin->next, struct vma_struct, node);

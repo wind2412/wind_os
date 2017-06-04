@@ -97,7 +97,7 @@ void free(void *addr)
 		chunk->size = 0;		//设为0，防止麻烦，UB问题。万一被malloc的循环读到就不好了。
 		while((heap_max - PAGE_SIZE) >= (u32)chunk){
 			heap_max -= PAGE_SIZE;
-			free_page(addr_to_pg(heap_max), 1);		//释放一页
+			free_page(pa_addr_to_pg(heap_max), 1);		//释放一页
 		}
 		list_delete(&chunk->node);
 		if(chunk_head.next == &chunk_head){

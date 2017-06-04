@@ -77,7 +77,9 @@ u32 pg_to_addr_la(struct Page *page);
 
 u32 pg_to_addr_pa(struct Page *page);
 
-struct Page *addr_to_pg(u32 addr);
+struct Page *la_addr_to_pg(u32 addr);
+
+struct Page *pa_addr_to_pg(u32 addr);
 
 
 struct pte_t *get_pte(struct pde_t *pde, u32 va, int is_create);

@@ -173,19 +173,25 @@ void page_init()
 //通过一个page结构体指针算出此页的la
 u32 pg_to_addr_la(struct Page *page)
 {
-	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
+	return ((page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
 }
 
 //通过一个page结构体指针算出此页的pa
 u32 pg_to_addr_pa(struct Page *page)
 {
-	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin;
+	return ((page - pages)) * PAGE_SIZE + pt_begin;
 }
 
-//通过la算出此页的Page *结构体
-struct Page *addr_to_pg(u32 addr)
+//通过page的la算出此页的Page *结构体
+struct Page *la_addr_to_pg(u32 addr)
 {
-	return (struct Page *)(((addr - VERTUAL_MEM - pt_begin) / PAGE_SIZE) / sizeof(struct Page) + pages);
+	return (struct Page *)(((addr - VERTUAL_MEM - pt_begin) / PAGE_SIZE) + pages);
+}
+
+//通过page的pa算出此页的Page *结构体
+struct Page *pa_addr_to_pg(u32 addr)
+{
+	return (struct Page *)(((addr - pt_begin) / PAGE_SIZE) + pages);
 }
 
 //得到pte指针。如果pde中没有设置的话，就设置pde。
@@ -200,7 +206,7 @@ struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 		memset((void *)pg_to_addr_la(pg), 0, PAGE_SIZE);		//清空整页。
 		pde[la >> 22].os = 0;
 		pde[la >> 22].sign = 0x7;
-		pde[la >> 22].pt_addr = (u32)pg >> 22;		//页目录表中添上刚刚申请的那个页！
+		pde[la >> 22].pt_addr = (pg_to_addr_la(pg) >> 22);		//页目录表中添上刚刚申请的那个页！
 	}
 	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];
 }
@@ -220,10 +226,10 @@ u32 get_pg_addr_pa(struct pte_t * pte)
 void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
 {
 	struct pte_t *pte = get_pte(pde, la, 1);
-	struct Page *new_pg = addr_to_pg(la);
+	struct Page *new_pg = la_addr_to_pg(la);
 	new_pg->ref += 1;
 	if((pte->sign & 0x1) == 1){		//要映射的pte已经被占用了 就要替换
-		struct Page *pg = addr_to_pg(get_pg_addr_la(pte));
+		struct Page *pg = la_addr_to_pg(get_pg_addr_la(pte));
 		if(pg == new_pg)	pg->ref -= 1;
 		else 				unmap(pde, get_pg_addr_la(pte));
 	}
@@ -236,7 +242,7 @@ void unmap(struct pde_t *pde, u32 la)
 {
 	struct pte_t *pte = get_pte(pde, la, 0);
 	if((pte->sign & 0x1) == 1){
-		struct Page *pg = addr_to_pg(get_pg_addr_la(pte));
+		struct Page *pg = la_addr_to_pg(get_pg_addr_la(pte));
 		pg->ref -= 1;
 		if(pg->ref == 0){
 			free_page(pg, 1);
