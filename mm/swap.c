@@ -123,5 +123,20 @@ void swap_out(struct mm_struct *mm, int n)
 
 void test_swap()
 {
+//	volatile u32 i = *(u32 *)0xf00000;
+//	i = 3;
+
+	extern struct mm_struct *mm;
+
+	struct vma_struct *vma = create_vma(mm, 0xf00000, 0xf00000+PAGE_SIZE);
+	if(find_vma(mm, 0xf00230) == vma){
+		printf("right.\n");
+	}else{
+		panic("wrong!\n");
+	}
+
+	for (int i = 0; i < 100; i ++) {
+		*(char *)(0xf00000 + i) = i;					//这里，在访存之时，由于缺页，便会遇到异常。所以必然会发生缺页异常中断了。然后，此处会跳到14号中断执行。
+	}
 
 }
