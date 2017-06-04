@@ -213,9 +213,10 @@ struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 		memset((void *)pg_to_addr_la(pg), 0, PAGE_SIZE);		//清空整页。
 		pde[la >> 22].os = 0;
 		pde[la >> 22].sign = 0x7;
-		pde[la >> 22].pt_addr = (pg_to_addr_la(pg) >> 12);		//页目录表中添上刚刚申请的那个页！		//注意！！pde的索引是la >>[22]，而内部存放的值是pte的地址，只>>[12]即可！！
+		//下边这里到底是pg_to_addr_pa还是la？？？
+		pde[la >> 22].pt_addr = (pg_to_addr_pa(pg) >> 12);		//页目录表中添上刚刚申请的那个页！		//注意！！pde的索引是la >>[22]，而内部存放的值是pte的地址，只>>[12]即可！！
 	}
-	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12)))[(la >> 12) & 0x3ff];
+	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];		//卧槽这里<<和+没加上括号，还没看warning.....调了一下午
 }
 
 //通过pte得到页的地址la
