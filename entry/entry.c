@@ -23,7 +23,7 @@
 //见ucore指导书：0～640KB是一开始空闲的，0~4kb全都当做页目录表，5~8,9~12,13~16,17~20kb当做页表（临时）（Linux0.11实现）
 __attribute__((section(".init.data"))) struct pde_t *pd  = (struct pde_t *)0x0000;
 __attribute__((section(".init.data"))) struct pte_t *fst = (struct pte_t *)0x1000;
-__attribute__((section(".init.data"))) struct pte_t *snd = (struct pte_t *)0x2000;
+//__attribute__((section(".init.data"))) struct pte_t *snd = (struct pte_t *)0x2000;
 
 /**
  * 虚拟内存：程序员输入的内存都是0xC0100000+，但是实际上内核被加载到了0x100000上了。
@@ -96,6 +96,7 @@ void init()
 	print_backtrace();		//打印堆栈～debug成功。
 
 	test_malloc();
+	test_swap();
 
 	while(1);
 }

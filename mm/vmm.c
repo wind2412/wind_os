@@ -13,8 +13,8 @@ int is_vmm_inited = 0;
 
 void vmm_init()
 {
-	extern struct pde_t *pd;
-	mm = create_mm(pd);
+	extern struct pde_t new_pd[];
+	mm = create_mm(new_pd);
 	is_vmm_inited = 1;
 }
 

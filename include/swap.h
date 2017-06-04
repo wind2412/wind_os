@@ -46,5 +46,7 @@ void swap_in(struct mm_struct *mm, u32 fault_addr);
 void swap_out(struct mm_struct *mm, int n);
 
 
+void test_swap();
+
 
 #endif /* INCLUDE_SWAP_H_ */

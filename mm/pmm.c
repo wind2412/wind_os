@@ -101,10 +101,12 @@ void pmm_init()
 //struct pde_t new_page_dir_t[PAGE_SIZE/sizeof(struct pde_t)] __attribute__((aligned(PAGE_SIZE)));	//页目录占用一页4096B，每项4B，共计1024个页目录项(2^10)。每个页目录项管理1024个页表项(2^10)，每个页表占4096B(2^12)，因此能够管理4G内存。
 //struct pte_t new_page_kern_table[2 * PAGE_SIZE / sizeof(struct pte_t)] __attribute__((aligned(PAGE_SIZE)));	//假设我们的内核只有8个M。两页就能放下。
 //struct pte_t new_page_freemem_table[PAGE_DIR_NUM * PAGE_SIZE / sizeof(struct pte_t)] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
-struct pte_t new_page_freemem_table[MAX_PAGE_NUM] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
+//struct pte_t new_page_freemem_table[MAX_PAGE_NUM] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
 
 struct Page *pages;		//pages的起始位置
 u32 pt_begin;			//空闲空间的起始位置
+
+//struct pde_t new_pd[1024];		//new_pd失败了......TAT
 
 void page_init()
 {
@@ -141,7 +143,7 @@ void page_init()
 
 
 			//重新分页!
-			extern struct pde_t *pd;
+			extern struct pde_t *pd;		//pd本身在.init.data段中！因此，重新分页之后必然只分高地址。而pd在0x0，那么肯定会出错！所以这里要重建pd。
 //			extern struct pte_t *snd;
 			//原先已经有过的，保持原样就可以，不用在设置了。
 			//把内核结束开始的新一页(free_mem page空间)到所有空闲结束的所有映射。	//原先0xC0000000~0xC0400000的已经全部映射了。我们从0xC0400000开始吧。
@@ -155,6 +157,8 @@ void page_init()
 //				new_page_freemem_table[i].os = 0;
 //				new_page_freemem_table[i].sign = 0x03;
 //			}
+			//所以要使用全局的：new_pd！！！
+//			memset(new_pd, 0, sizeof(new_pd));
 			for(int i = (u32)(pt_begin + VERTUAL_MEM); i < (u32)(pt_end + VERTUAL_MEM); i += PAGE_SIZE){
 				struct pte_t *pte = get_pte(pd, i, 1);
 				pte->sign = 0x3;

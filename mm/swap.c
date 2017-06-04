@@ -120,3 +120,8 @@ void swap_out(struct mm_struct *mm, int n)
 
 	}
 }
+
+void test_swap()
+{
+
+}
