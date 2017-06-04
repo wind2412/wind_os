@@ -54,7 +54,7 @@ void waitdisk(void) {
 void readsect(void *dst, u32 offset) {
 	// Issue command.
 	waitdisk();
-	outb(0x1F2, 1);   // count = 1
+	outb(0x1F2, 1);   // sect count
 	outb(0x1F3, offset);
 	outb(0x1F4, offset >> 8);
 	outb(0x1F5, offset >> 16);
@@ -83,5 +83,5 @@ void readseg(u8* pa, u32 count, u32 offset) {
 	// We'd write more to memory than asked, but it doesn't matter --
 	// we load in increasing order.
 	for (; pa < epa; pa += SECTSIZE, offset++)
-		readsect(pa, offset);
+		readsect(pa, offset);	//read from the No.0 ide_no. --by wind
 }

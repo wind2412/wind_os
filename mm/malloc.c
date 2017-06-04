@@ -18,7 +18,7 @@ void malloc_init()
 	chunk_head.next = &((struct Chunk *)heap_max)->node;
 	chunk_head.prev = &((struct Chunk *)heap_max)->node;
 	//设置第一块malloc(其实没有malloc，只是为了编程方便)
-	struct Page first_page = alloc_page();	//先分出来一页。
+	struct Page *first_page = alloc_page(1);	//先分出来一页。
 	//设置这一页。
 	((struct Chunk *)heap_max)->allocated = 0;
 	((struct Chunk *)heap_max)->size = PAGE_SIZE;
@@ -44,7 +44,7 @@ void *malloc(u32 size)
 
 			//对"此chunk"进行设置
 			chunk->allocated = 1;
-			chunk->size = total_alloc_size;
+			chunk->size = total_alloc_size - sizeof(struct Chunk);
 
 			return (void *)((u32)chunk + sizeof(struct Chunk));
 		}else{	//继续遍历还有哪个页能容纳下所需要的size
@@ -62,7 +62,7 @@ void *malloc(u32 size)
 		prev = GET_OUTER_STRUCT_PTR(chunk_head.prev->prev, struct Chunk, node);
 	}
 	while(heap_max < (u32)prev + sizeof(struct Chunk) + prev->size + total_alloc_size){	//不断分配页面，如果size太大的话
-		struct Page page = alloc_page();
+		struct Page *page = alloc_page(1);
 		heap_max += PAGE_SIZE;		//更新下次如果前边malloc的没有free的话，想要再malloc的新chunk位置
 	}
 	struct Chunk *cur = (struct Chunk *)((u32)prev + sizeof(struct Chunk) + prev->size);
@@ -97,19 +97,19 @@ void free(void *addr)
 		chunk->size = 0;		//设为0，防止麻烦，UB问题。万一被malloc的循环读到就不好了。
 		while((heap_max - PAGE_SIZE) >= (u32)chunk){
 			heap_max -= PAGE_SIZE;
-			add_page_addr_to_stack(heap_max);
+			free_page(addr_to_pg(heap_max), 1);		//释放一页
 		}
 		list_delete(&chunk->node);
 		if(chunk_head.next == &chunk_head){
-//			malloc_init();		//重新开始。	//会出问题。。。竟然意外跳了EIP？
-			alloc_page();
-			chunk_head.prev = chunk_head.next = &((struct Chunk *)heap_max)->node;
-			//设置这一页。
-			((struct Chunk *)heap_max)->allocated = 0;
-			((struct Chunk *)heap_max)->size = PAGE_SIZE;
-			((struct Chunk *)heap_max)->node.next = &chunk_head;
-			((struct Chunk *)heap_max)->node.prev = &chunk_head;
-			heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
+			malloc_init();		//重新开始。	//会出问题。。。竟然意外跳了EIP？
+//			alloc_page(1);
+//			chunk_head.prev = chunk_head.next = &((struct Chunk *)heap_max)->node;
+//			//设置这一页。
+//			((struct Chunk *)heap_max)->allocated = 0;
+//			((struct Chunk *)heap_max)->size = PAGE_SIZE;
+//			((struct Chunk *)heap_max)->node.next = &chunk_head;
+//			((struct Chunk *)heap_max)->node.prev = &chunk_head;
+//			heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
 		}
 	}
 

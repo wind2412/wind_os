@@ -45,17 +45,22 @@ struct pte_t{
 
 #define PAGE_DIR_NUM	128		//128个页目录项，因此共计能够映射128*2^10*2^12B = 512MB.
 
-#define MAX_PAGE_POOL 	40000	//经过人工计算得到的页数量应该是三万+。
+#define MAX_PAGE_NUM 	30000	//经过人工计算得到的页数量应该是三万+。
 
-#define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
-#define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
+//#define ROUNDUP(addr)	(addr - (addr % PAGE_SIZE) + PAGE_SIZE)
+//#define ROUNDDOWN(addr)	(addr - (addr % PAGE_SIZE))
+
+//给宏变量加上括号是好习惯。防止输入算式的话，由于符号优先级会出错。
+#define ROUNDUP(addr)	((addr) - ((addr) % PAGE_SIZE) + PAGE_SIZE)
+#define ROUNDDOWN(addr)	((addr) - ((addr) % PAGE_SIZE))
 
 #define GET_OUTER_STRUCT_PTR(node, type, member) ( (type *)( (u32)node - (u32)(&((type *)0)->member) ) )
 
 struct Page{
 	int ref;		//引用计数
-	u32 va;
-	u32 free_mem;
+	u32 flags;
+	u32 free_pages;
+	u32 va;		//用于fifo. //为什么这里要单独设置一个page的va呢？原因看下一句吧。有时候，page->va和pg_to_addr(page)并不同，这是因为：pg_to_addr只能转换“内核之后的空闲内存区”的地址！！而无法转换之前的！！如果我访问0x1000，那么根本无法转换！！所以ucore用了很巧妙的手法来解决这个问题。
 	struct list_node node;
 };
 
@@ -64,13 +69,28 @@ struct free_area{
 	int free_page_num;
 };
 
-void add_page_addr_to_stack(u32 page);
+struct Page *alloc_page(int n);
 
-struct Page alloc_page();
+void free_page(struct Page *, int n);
 
-void free_page(struct Page *);
+u32 pg_to_addr_la(struct Page *page);
 
-void open_page_mm();
+u32 pg_to_addr_pa(struct Page *page);
+
+struct Page *addr_to_pg(u32 addr);
+
+
+struct pte_t *get_pte(struct pde_t *pde, u32 va, int is_create);
+
+void map(struct pde_t *pde, u32 va, u32 pa, u8 is_user);
+
+void unmap(struct pde_t *pde, u32 va);
+
+u32 get_pg_addr_la(struct pte_t * pte);
+
+u32 get_pg_addr_pa(struct pte_t * pte);
+
+
 
 void print_memory();
 
