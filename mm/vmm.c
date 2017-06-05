@@ -30,12 +30,13 @@ struct mm_struct *create_mm(struct pde_t *pde)
 	return mm;
 }
 
-struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end)
+struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end, u32 flags)
 {
 	struct vma_struct *vma = (struct vma_struct *)malloc(sizeof(struct vma_struct));
 	vma->vmm_start = vmm_start;
 	vma->vmm_end = vmm_end;
 	vma->back_link = mm;
+	vma->flags = flags;
 
 	//insert
 	struct list_node *begin = &mm->node;
@@ -61,10 +62,11 @@ struct vma_struct *find_vma(struct mm_struct *mm, u32 addr)
 	struct list_node *begin = &mm->node;
 	while(begin->next != &mm->node){
 		struct vma_struct *temp = GET_OUTER_STRUCT_PTR(begin->next, struct vma_struct, node);
-		if(temp->vmm_start < addr && temp->vmm_end > addr){
+		if(temp->vmm_start <= addr && temp->vmm_end > addr){
 			mm->cache = temp;
 			return temp;
 		}
+		begin = begin->next;
 	}
 	return NULL;
 }
@@ -111,6 +113,7 @@ void page_fault(struct idtframe *frame)
 //    } else {
 //        printf("Read error.\n");
 //    }
+
 
     switch (frame->errorCode & 0x3) {
     	case 0:
@@ -166,6 +169,14 @@ void do_swap(u32 cr2, int is_write)		//从磁盘换进来 fault_pg对应的pte�
 {
 	u32 fault_pg_addr = ROUNDDOWN(cr2);
 
+	//检查vma属性合法？ vma相当于一个gate。（门描述符）
+    struct vma_struct *vma = find_vma(mm, fault_pg_addr);
+    if(vma == NULL)												panic("didn't find vma... wrong.\n");
+    else if(is_write && (vma->flags & 0x2) == 0)				panic("vma struct's flag said cannot write! wrong.\n");
+    else if(!is_write && (vma->flags & (0x1 | 0x4)) == 0)		panic("vma struct's flag said cannot read or exec! wrong.\n");
+
+    u32 sign = (vma->flags & 0x2) == 1 ? 0x7 : 0x5;		//因为swap一定是用户态，内核是不允许swap的。所以user位必然置1.
+
 	struct pte_t *pte = get_pte(mm->pde, fault_pg_addr, 1);	//1.如果页目录表有的话，那么返回。
 															//2.如果页目录表还没有的话，说明正在指定访问一个比较偏的内存位置。需要新建立一个pde目录表项，通过申请一个pte页。
 	if(pte->page_addr == 0 && pte->sign == 0){		//1,2->如果页表没有绑定页page的话，那就只能另申请一个page页并绑定到pte了。而且因为pte毛都没有，所以根本就不在磁盘上。
@@ -173,12 +184,12 @@ void do_swap(u32 cr2, int is_write)		//从磁盘换进来 fault_pg对应的pte�
 		printf("no page linked. so alloc a page, la: %x\n", pg_to_addr_la(pg));
 		if(pg == NULL)	return;	//panic更好
 		pg->va = fault_pg_addr;		//这个va会在swap_out中使用.
-		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), (is_write) ? 0x7 : 0x5);		//因为swap一定是用户态，内核是不允许swap的。
+		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), sign);
 		//把新alloc的page加到vm_fifo列表中
 		list_insert_before(&mm->vm_fifo, &pg->node);
 	}else{											//3.如果已经绑定页面的话，那么说明在磁盘中了。换进来。
-		extern void swap_in(struct mm_struct *mm, u32 fault_addr);
-		swap_in(mm, fault_pg_addr);
+		extern void swap_in(struct mm_struct *mm, u32 fault_addr, u32 sign);
+		swap_in(mm, fault_pg_addr, sign);
 	}
 
 }

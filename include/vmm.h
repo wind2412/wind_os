@@ -29,6 +29,7 @@ struct mm_struct{
 struct vma_struct{
 	u32 vmm_start;
 	u32 vmm_end;
+	u32 flags;
 	struct mm_struct *back_link;
 	struct list_node node;
 };
@@ -37,7 +38,7 @@ void vmm_init();
 
 struct mm_struct *create_mm(struct pde_t *pde);
 
-struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end);
+struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end, u32 flags);
 
 //返回vmm_start比之大的第一个vma
 struct vma_struct *find_vma(struct mm_struct *mm, u32 addr);

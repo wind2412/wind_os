@@ -11,10 +11,13 @@ struct ide_t swap = {
 	.ideno = 1,
 };
 
-void waitdisk(void) {
+int waitdisk(void) {
 	// Wait for disk ready.
-	while ((inb(0x1F7) & 0xC0) != 0x40)
+	int return_val;
+	while ((return_val = (inb(0x1F7) & 0xC0)) != 0x40)
 		;
+	if((return_val & 0x21) != 0)	return -1;
+	else							return 0;
 }
 
 void swap_init()
@@ -55,7 +58,7 @@ void readsect(void *dst, u32 sectno, int ide_no, int sect_count)
 
 	// Read data.
 	for(; sect_count > 0; sect_count --, dst += SECTSIZE){
-		waitdisk();
+		if(waitdisk() == -1) return;
 		insl(0x1F0, dst, SECTSIZE / 4);
 	}
 }
@@ -73,14 +76,14 @@ void writesect(void *src, u32 sectno, int ide_no, int sect_count)
 
 	// Read data.
 	for(; sect_count > 0; sect_count --, src += SECTSIZE){
-		waitdisk();
+		if(waitdisk() == -1) return;
 		outsl(0x1F0, src, SECTSIZE / 4);
 	}
 }
 
 void swap_read(u32 dst_page_addr, struct pte_t *pte)
 {
-	readsect((void *)dst_page_addr, ((*(u32*)pte) >> 8) * PAGE_SIZE/SECTSIZE, 1, PAGE_SIZE/SECTSIZE);		//struct不能转为int。所以必须把struct*转为int*再解引用。
+	readsect((void *)dst_page_addr, ((*(u32*)pte) >> 8)* PAGE_SIZE/SECTSIZE, 1, PAGE_SIZE/SECTSIZE);		//struct不能转为int。所以必须把struct*转为int*再解引用。
 }
 
 void swap_write(u32 src_page_addr, int sectno)
@@ -89,7 +92,7 @@ void swap_write(u32 src_page_addr, int sectno)
 }
 
 //把页从磁盘给换进来。		fault_addr必然是va。
-void swap_in(struct mm_struct *mm, u32 fault_addr)
+void swap_in(struct mm_struct *mm, u32 fault_addr, u32 flags)
 {
 	printf("swap %x page come in!\n", fault_addr);
 	struct pte_t *wrong_pte = get_pte(mm->pde, fault_addr, 0);
@@ -111,7 +114,7 @@ void swap_out(struct mm_struct *mm, int n)
 	while(begin->next != &mm->vm_fifo && n > 0){
 		struct Page *page = GET_OUTER_STRUCT_PTR(begin->next, struct Page, node);	//要被换出的页面。
 		struct pte_t *pte = get_pte(mm->pde, page->va, 0);
-		swap_write(pg_to_addr_la(page), ((page->va / PAGE_SIZE)+1) * PAGE_SIZE/SECTSIZE);		//ucore的+1非常漂亮！完美的解决了“不在磁盘中”和“第0个页面0x0～0x1000”高地址全都是0的冲突情况。
+		swap_write(pg_to_addr_la(page), (page->va / PAGE_SIZE + 1) * PAGE_SIZE/SECTSIZE);		//ucore的+1非常漂亮！完美的解决了“不在磁盘中”和“第0个页面0x0～0x1000”高地址全都是0的冲突情况。
 		printf("swap %x page to swap.img!\n", pg_to_addr_la(page));
 		pte->sign = 0;
 		pte->page_addr = 0;
@@ -136,20 +139,44 @@ void test_swap()
 
 	extern struct mm_struct *mm;
 
-	struct vma_struct *vma = create_vma(mm, 0xf00000, 0xf00000+PAGE_SIZE);
+	struct vma_struct *vma = create_vma(mm, 0xf00000, 0xf04000, 0x7);
 	if(find_vma(mm, 0xf00230) == vma){
 		printf("right.\n");
 	}else{
 		panic("wrong!\n");
 	}
 
+	//bug: 不知道为什么，第一个使用ide读取的页面都会诡异地丢失？？但是后边的是好的......
+
 	//卧槽......看了反汇编才知道，编译器给我优化掉了......两个合成了一个......所以使用#pragma GCC push_options宏来进行停止优化
+	printf("======================\n");
+	printf("write 0x12 -> 0xf00000 && write 0xaa -> 0xf00004\n");
 	*(char *)0xf00000 = 0x12;					//这里，在访存之时，由于缺页，便会遇到异常。所以必然会发生缺页异常中断了。然后，此处会跳到14号中断执行。
-	*(char *)0xf02000 = 0x34;
-	*(char *)0xf00004 = 0x56;
+	*(char *)0xf00004 = 0xaa;
 	printf("0xf00000: %x\n", *(u32 *)0xf00000);
-	*(char *)0xf02000 = 0x38;
-	*(char *)0xf03000 = 0x11;
+	printf("======================\n");
+	printf("write 0x34 -> 0xf02000\n");
+	*(char *)0xf02000 = 0x34;
+	printf("0xf02000: %x\n", *(u32 *)0xf02000);
+	printf("======================\n");
+	printf("write 0x56 -> 0xf00004\n");
+	*(char *)0xf00008 = 0x56;
+	printf("0xf00000: %x\n", *(u32 *)0xf00000);
+	printf("0xf00004: %x\n", *(u32 *)0xf00004);
+	printf("0xf00008: %x\n", *(u32 *)0xf00008);
+	printf("======================\n");
+	printf("write 0x38 -> 0xf02004\n");
+	*(char *)0xf02004 = 0x38;
+	printf("0xf02000: %x\n", *(u32 *)0xf02000);
+	printf("0xf02004: %x\n", *(u32 *)0xf02004);
+	printf("======================\n");
+	printf("write 0x11 -> 0xf00008\n");
+	*(char *)0xf0000C = 0x11;
+	printf("0xf00000: %x\n", *(u32 *)0xf00000);
+	printf("0xf00004: %x\n", *(u32 *)0xf00004);
+	printf("0xf00008: %x\n", *(u32 *)0xf00008);
+	printf("0xf0000C: %x\n", *(u32 *)0xf0000C);
+	printf("======================\n");
 
 
 }

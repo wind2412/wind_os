@@ -30,9 +30,9 @@ struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已
 			GET_OUTER_STRUCT_PTR(del, struct Page, node)->flags = 1;	//设为已用
 			free_pages.free_page_num -= n;
 
-			//每alloc一个page，需要换出去一个page以求均衡
+			//每alloc一个page，需要换出去一个page以求均衡		//分得太多就不考虑了？
 			extern int is_vmm_inited;
-			if(is_vmm_inited == 1){
+			if(is_vmm_inited == 1 && n == 1){
 				extern struct mm_struct *mm;
 				extern void swap_out(struct mm_struct *mm, int n);
 				swap_out(mm, 1);
@@ -42,6 +42,8 @@ struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已
 		}
 		ptr = ptr->next;
 	}
+
+
 	return NULL;
 }
 
