@@ -224,7 +224,7 @@ u32 get_pg_addr_pa(struct pte_t * pte)
 	return (pte->page_addr) << 12;
 }
 
-void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
+void map(struct pde_t* pde, u32 la, u32 pa, u8 bitsign)
 {
 	struct pte_t *pte = get_pte(pde, la, 1);
 	struct Page *new_pg = pa_addr_to_pg(pa);
@@ -234,7 +234,7 @@ void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
 		if(pg == new_pg)	pg->ref -= 1;
 		else 				unmap(pde, get_pg_addr_la(pte));
 	}
-	pte->sign = is_user == 1 ? 0x7 : 0x3;
+	pte->sign = bitsign;
 	pte->page_addr = (pa >> 12);
 	asm volatile ("invlpg (%0)" ::"r"(la));
 }

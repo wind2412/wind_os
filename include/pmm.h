@@ -84,7 +84,7 @@ struct Page *pa_addr_to_pg(u32 addr);
 
 struct pte_t *get_pte(struct pde_t *pde, u32 va, int is_create);
 
-void map(struct pde_t *pde, u32 va, u32 pa, u8 is_user);
+void map(struct pde_t *pde, u32 va, u32 pa, u8 bitsign);
 
 void unmap(struct pde_t *pde, u32 va);
 

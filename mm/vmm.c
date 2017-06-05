@@ -115,7 +115,7 @@ void page_fault(struct idtframe *frame)
     switch (frame->errorCode & 0x3) {
     	case 0:
     		//read一个not present的页面，  这样应该从磁盘拿来新的页面
-    		do_swap(cr2);
+    		do_swap(cr2, 0);
     		break;
     	case 1:
     		//read一个present的页面 竟然还能出错？
@@ -132,7 +132,7 @@ void page_fault(struct idtframe *frame)
     		break;
     	case 2:
     		//write一个not present的页面， 这样应该从磁盘拿来新的页面
-    		do_swap(cr2);
+    		do_swap(cr2, 1);
     		break;
     	case 3:
     		//write一个present的页面，页保护异常。这样应该COW。 由于最后两位00000011b，因此正在写，而且页面存在。但是又出了异常，因而原先的pte必然是只读的。可以推理出来。
@@ -162,7 +162,7 @@ void page_fault(struct idtframe *frame)
 }
 
 //只有在缺页时创建的新page才会被swap out。即便是根本没在磁盘上，而是[根本没有]的页面。
-void do_swap(u32 cr2)		//从磁盘换进来 fault_pg对应的pte上写的扇区号 对应的磁盘上4096B
+void do_swap(u32 cr2, int is_write)		//从磁盘换进来 fault_pg对应的pte上写的扇区号 对应的磁盘上4096B
 {
 	u32 fault_pg_addr = ROUNDDOWN(cr2);
 
@@ -173,7 +173,7 @@ void do_swap(u32 cr2)		//从磁盘换进来 fault_pg对应的pte上写的扇区�
 		printf("no page linked. so alloc a page, la: %x\n", pg_to_addr_la(pg));
 		if(pg == NULL)	return;	//panic更好
 		pg->va = fault_pg_addr;		//这个va会在swap_out中使用.
-		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), 1);
+		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), (is_write) ? 0x7 : 0x5);		//因为swap一定是用户态，内核是不允许swap的。
 		//把新alloc的page加到vm_fifo列表中
 		list_insert_before(&mm->vm_fifo, &pg->node);
 	}else{											//3.如果已经绑定页面的话，那么说明在磁盘中了。换进来。

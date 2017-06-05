@@ -42,10 +42,10 @@ void *malloc(u32 size)
 //				list_insert_before(&chunk_head, &little_remain->node);
 //				return (void *)((u32)little_remain + sizeof(struct Chunk));
 //			}else{
-//				goto fail;		//此生终于在正式场合里用上了goto！！哈哈哈哈哈哈！！
+//				goto fail;
 //			}
 		}else{	//继续遍历还有哪个页能容纳下所需要的size
-	fail:	if(chunk->node.next == &chunk_head)	break;	//这一句是防止如果现在是最后一个块，下一个是chunk_head，但是自身却少于size大小，如果是这样的话，else里会->next变成node自身，就会无限循环。。。恶心的设计。
+/*fail:*/	if(chunk->node.next == &chunk_head)	break;	//这一句是防止如果现在是最后一个块，下一个是chunk_head，但是自身却少于size大小，如果是这样的话，else里会->next变成node自身，就会无限循环。。。恶心的设计。
 			node = node->next;
 			continue;
 		}
@@ -91,6 +91,8 @@ void free(void *addr)
 		list_delete(&next->node);
 		chunk->size += (next->size + sizeof(struct Chunk));
 	}
+
+	//free_page的操作并没有写。等到以后有时间再写吧。
 
 	//由于vmm啥的init全是malloc初始化的。因此原来的[如果全free的话，就把所有page全都free了]的策略是错误的。因为根本就不可能全free了。
 //	if((u32)chunk == ROUNDDOWN((u32)chunk) && (sizeof(struct Chunk) + chunk->size) % PAGE_SIZE == 0){	//现在的chunk占据了一个整页，删了它吧
