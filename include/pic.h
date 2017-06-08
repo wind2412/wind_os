@@ -14,4 +14,6 @@ void pic_init();
 
 void sti();
 
+void cli();
+
 #endif /* INCLUDE_PIC_H_ */

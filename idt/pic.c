@@ -35,3 +35,8 @@ void sti()
 {
 	asm volatile ("sti");
 }
+
+void cli()
+{
+	asm volatile ("sti");
+}

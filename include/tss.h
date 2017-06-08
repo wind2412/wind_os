@@ -13,6 +13,10 @@
 #include <gdt.h>
 #include <idt.h>
 
+#ifndef PAGE_SIZE
+#define PAGE_SIZE 4096
+#endif
+
 
 struct tss{
 	u16 back_link;	u16 bzero;			//back_link由CPU在切换CPL的时候自动压入。
