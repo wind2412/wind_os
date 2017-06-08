@@ -8,11 +8,9 @@
 #ifndef INCLUDE_SCHED_H_
 #define INCLUDE_SCHED_H_
 
+#include <proc.h>
 
-
-
-
-
+void schedule();
 
 
 
