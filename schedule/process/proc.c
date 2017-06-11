@@ -9,7 +9,7 @@
 
 struct pcb_t *idle, *init_proc;	//内核线程0，1
 
-struct pcb_t *current;		//当前进程
+struct pcb_t *current = NULL;		//当前进程
 
 struct list_node proc_list;		//进程双向链表
 
@@ -78,6 +78,27 @@ int default_proc_fn(void *what_you_want_to_say)
 	return 0;		//errorCode. 由于fn返回之后，会把return值装载在eax中，因此可以充当errorCode。
 }
 
+int fn_init_kern_thread(void *arg)		//init进程执行的函数。
+{
+	int pid = kernel_thread(fn_sec_kern_thread, NULL, 1);	//create proc No.2 and share mm.
+
+	return do_waitpid(pid);
+}
+
+int fn_sec_kern_thread(void *arg)		//进程2执行的函数
+{
+	int errorCode;
+	extern int user_main();
+	asm volatile ("int $0x80;":"=a"(errorCode):"a"(4), "b"(user_main));		//系统调用execve函数，虽然这是一个内核进程，但是还是evecve一个用户程序。和linux开机时在内核态execve一个/bin/bash是一样的。
+	return errorCode;
+}
+
+int do_waitpid(int pid)
+{
+	printf("waitpid...\n");
+	return 0;
+}
+
 void proc_init()
 {
 	list_init(&proc_list);	//初始化proc_list链表
@@ -96,7 +117,7 @@ void proc_init()
 
 	proc_num ++;
 
-	if((kernel_thread(default_proc_fn, "oh my god", 0)) == -1){
+	if((kernel_thread(fn_init_kern_thread, NULL, 1)) == -1){		//创建一个进程1，init进程。init进程里边还会再创建一个进程2.作为用户进程的“躯体”
 		panic("can't init_proc proc 1... wrong.\n");
 	}
 
@@ -109,12 +130,12 @@ int kernel_thread(int (*fn)(void *), void *arg, u32 flags)
 	struct idtframe frame;
 	memset(&frame, 0, sizeof(frame));
 	frame.cs = 0x08;						//设置idtframe。这个idtframe放在pcb->start_stack的最高地址处。里边有将要恢复的各种变量。之所以要利用中断，是因为后边系统调用需要中断，这里一起用了吧。
-	frame.my_eax = frame.ss = 0x10;
+	frame.my_eax = frame.ss = 0x10;		//【全是kernel的CS和SS、DS！】
 	frame.ebx = (u32)fn;
 	frame.edx = (u32)arg;
 	frame.eip = (u32)kernel_thread_entry;	//在switch_to之后，eip会被设置为copy_thread内部pcb->context.eip。此eip设置为中断my_push的中间后部pop恢复寄存器部分。
 											//届时iret时，eip会被恢复成frame.eip==>kernel_thread_entry.然后就会执行ebx，edx中的fn函数了。之后线程消亡。
-	return do_fork(flags | 0x100, 0, &frame);		//????????
+	return do_fork(flags, 0, &frame);		//????????
 }
 
 int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实并不算fork。它的pcb全是通过额外传入的参数frame设置的。如果是fork，理当从current->frame设置吧。
@@ -140,9 +161,7 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 	pcb->parent = current;
 	list_insert_after(&proc_list, &pcb->node);		//插入node
 	proc_num ++;
-	if(copy_mm(flags, pcb) == -1){
-
-	}
+	copy_mm(pcb, 1);
 	copy_thread(pcb, stack, frame);
 
 	wakeup_process(pcb);
@@ -155,8 +174,49 @@ void do_exit(int errorCode)
 	panic("hahaha!!exit!!\n");
 }
 
-int copy_mm(){
-	return -1;
+int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函数		//bug..
+	struct mm_struct *old_mm = current->mm;
+	if(old_mm == NULL)	return 0;
+	if(is_share){		//指针指向同样mm即可
+		pcb->mm = old_mm;
+		old_mm->num += 1;	//引用计数自增
+		pcb->backup_pde = old_mm->pde;
+		return 0;
+	}else{		//必须复制一份。
+		struct mm_struct *mm = (struct mm_struct *)malloc(sizeof(struct mm_struct));
+		memcpy(&mm, &old_mm, sizeof(struct mm_struct));
+		pcb->mm = mm;
+
+		//copy vmm
+		struct list_node *begin = (&old_mm->vm_fifo)->next;
+		while(begin != &old_mm->vm_fifo){
+			struct vma_struct *old_vma = GET_OUTER_STRUCT_PTR(begin, struct vma_struct, node);
+			create_vma(mm, old_vma->vmm_start, old_vma->vmm_end, old_vma->flags);		//创建并插入vma
+
+			//不做错误检查了。简直。。。也没有时间了。
+			//把页目录表弄过来。
+			u32 start = old_vma->vmm_start;
+			while(start < old_vma->vmm_end){
+				struct pte_t *old_pte = get_pte(old_mm->pde, start, 0);
+				if(old_pte == NULL){
+					start += 1024 * PAGE_SIZE;
+					continue;
+				}
+				if(old_pte->sign & 0x1)	{		//如果old_pte不是虚拟内存，则创建start对应的pte。[否则不创建？？？]
+					get_pte(mm->pde, start, 1);
+					u32 old_page_addr_la = get_pg_addr_la(old_pte);		//被复制的page地址
+					struct Page *page = alloc_page(1);
+					u32 page_addr_pa = pg_to_addr_pa(page);				//新页page地址
+					u32 bitsign = (old_pte->sign & 0x3) | 0x4;			//加上user态
+					map(mm->pde, start, page_addr_pa, bitsign);			//map新alloc的page
+					memcpy((void *)pg_to_addr_la(page), (const void *)old_page_addr_la, PAGE_SIZE);	//复制整个页。
+				}
+				start += PAGE_SIZE;
+			}
+		}
+	}
+
+	return 0;
 }
 
 void copy_thread(struct pcb_t *pcb, u32 stack, struct idtframe *frame)
@@ -174,7 +234,7 @@ void copy_thread(struct pcb_t *pcb, u32 stack, struct idtframe *frame)
 
 void kernel_thread_entry()
 {
-	asm volatile("push %edx; call *%ebx; push %eax; call do_exit;");
+	asm volatile("push %edx; call *%ebx; push %eax; call do_exit;");	//无限循环就好。因为根本没法返回，根本不知道返回哪里。然后调度的时候调走就好了。这个进程就没啦。
 }
 
 int set_kthread_stack(struct pcb_t *pcb)

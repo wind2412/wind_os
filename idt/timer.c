@@ -6,6 +6,7 @@
  */
 
 #include <timer.h>
+#include <sched.h>
 
 u32 jiffies = 0;
 
@@ -21,5 +22,6 @@ void timer_intr_init()
 void timer_handler(struct idtframe *frame)
 {
 	jiffies ++;
-	printf("now it is %d intr.\n", jiffies);
+//	printf("now it is %d intr.\n", jiffies);
+	schedule();		//切换进程
 }

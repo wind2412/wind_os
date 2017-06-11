@@ -16,6 +16,8 @@ int strcmp(const char *lhs, const char *rhs);
 
 void memset(void *src, u8 ch, u32 size);
 
+void *memcpy(void *dst, const void *src, u32 size);
+
 char *strcpy(char *dest, const char *src);
 
 

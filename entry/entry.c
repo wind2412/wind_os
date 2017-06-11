@@ -90,7 +90,7 @@ void init()
 	pic_init();
 	tss_init();
 	outb(0x21, 0x01);		//关了时钟中断......
-//	timer_intr_init();
+	timer_intr_init();
 	kbd_init();
 
 	switch_to_user_mode();		//分页在用户模式下会有问题。

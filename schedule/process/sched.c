@@ -10,6 +10,7 @@
 
 void schedule()
 {
+	if(current == NULL)	return;		//时钟中断如果在进程未初始化的时候就sched，就会崩溃
 	struct list_node *begin, *next;
 	begin = (current == idle) ? &proc_list: &current->node;
 	next = begin->next;

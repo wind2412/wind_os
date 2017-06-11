@@ -6,6 +6,7 @@
  */
 
 #include <tss.h>
+#include <string.h>
 
 /**
  * ltr有些不同于lgdt和lidt。它的可见位只有16位，这16位加载“某一tss在gdt的偏移量”
@@ -39,6 +40,7 @@ void tss_init()
 	//设置IDT第120项和第121项的handler！也就是switch_to_user_handler和switch_to_kern_handler.
 	handlers[120] = switch_to_user_handler;
 	handlers[121] = switch_to_kern_handler;
+//	handlers[0x80] = system_intr;
 }
 
 //这里非常难理解啊。详见https://wenku.baidu.com/view/a7edfdc233687e21ae45a922.html?re=view吧。这个写的简直不能再棒o(*////▽////*)q
@@ -87,3 +89,33 @@ void switch_to_kern_mode()
 	asm volatile ("add $0x8, %esp;");		//恢复没用的ss和esp。因为这里的iret不会跳权限ring，因此并不会弹出这两个值。
 	asm volatile ("movl %0, %%esp"::"r"(jmp_to_old_esp));		//强制把内核栈中的esp拽回到普通的旧地址中！～
 }
+
+extern int sys_exit(u32 arg[]);
+extern int sys_fork(u32 arg[]);
+extern int sys_wait(u32 arg[]);
+extern int sys_execve(u32 arg[]);
+extern int sys_putc(u32 arg[]);
+
+//系统调用中断，存放在user.c中。
+int (*system_call[])(u32 arg[]) = {
+		[1]		sys_exit,
+		[2] 	sys_fork,
+		[3]		sys_wait,
+		[4]		sys_execve,
+		[30]	sys_putc,
+};
+
+//系统调用中断的handler(通用)
+void system_intr(struct idtframe *frame)
+{
+	int syscall_num = frame->eax;
+	u32 fn = frame->ebx;
+	u32 argu = frame->ecx;	//假设函数有个参数。会存放在ecx中
+	u32 arg[5];
+	memset(arg, 0, sizeof(arg));
+	arg[0] = fn;
+	arg[1] = argu;
+	system_call[syscall_num](arg);		//呼叫内核函数
+}
+
+

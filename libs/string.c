@@ -46,3 +46,11 @@ void memset(void *src, u8 ch, u32 size){
 	}
 }
 
+void *memcpy(void *dst, const void *src, u32 size){
+	char *new_dst = (char *)dst;
+	const char *new_src = (const char *)src;
+    while (size -- > 0) {
+        *new_dst ++ = *new_src ++;
+    }
+    return dst;
+}

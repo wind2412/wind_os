@@ -81,11 +81,17 @@ struct pcb_t *create_pcb();
 
 int default_proc_fn(void *what_you_want_to_say);	//用于kern_thread 1号initproc内核线程的fn
 
+int fn_init_kern_thread(void *arg);		//init进程执行的函数。
+
+int fn_sec_kern_thread(void *arg);		//进程2执行的函数
+
 int kernel_thread (int (*fn)(void *), void *arg, u32 flags);
 
 void kernel_thread_entry();
 
 int do_fork(u32 flags, u32 stack, struct idtframe *);
+
+int do_waitpid(int pid);
 
 void do_exit();
 
