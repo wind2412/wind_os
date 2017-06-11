@@ -23,7 +23,7 @@ int sys_wait(u32 arg[])
 
 }
 
-int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
+int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。		//此函数还在内核模式中。但是，只要出去由中断恢复了，那么就会变成用户态了。
 {
 //	arg[0](arg[1]);	//使用execve调用用户态函数。(这里即user_main)
 
@@ -47,9 +47,12 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	code_pte->page_addr = (pg_to_addr_pa(code_pg) >> 12);		//千万是pa。。。。TAT  否则会崩溃。。。
 	code_pte->sign = 0x07;
 
-	memcpy((void *)pg_to_addr_la(code_pg), (void *)arg[0], PAGE_SIZE);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
+	//参数就不做了......万一传进来一个神TM结构体.....莫非我还要用汇编重写吗......
+	//但是为了防止execve的函数return时能够有正确的返回值，应该现在此code页的最前边push一波do_exit的eip。
+	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(do_exit), "r"(pg_to_addr_la(code_pg)):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
+	memcpy((void *)(pg_to_addr_la(code_pg)+4), (void *)arg[0], PAGE_SIZE-4);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
 
-	frame->eip = pg_to_addr_la(code_pg);	//user_main
+	frame->eip = pg_to_addr_la(code_pg)+4;	//user_main
 
 
 	return 0;
@@ -69,7 +72,7 @@ void print(const char *fmt)
 
 //需要被执行的user函数
 int user_main(){
-//	print("user_main....\n");
+	print("user_main....\n");
 	return 0;
 //	int pid;
 //	if((pid = fork()) != 0){

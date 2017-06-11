@@ -35,13 +35,14 @@ void tss_init()
 
 	//在IDT的第121项设置(任务门描述符)切换到用内核。120项的切换到内核并不用修改。因为DPL是0x00，和其他中断没有区别.
 	extern u32 _intrs[];
-	set_intr_gate_desc(121, /*(u32)&_intrs[i]*/ _intrs[121], 0x08, IGD, 0x03, 1);		//与IDT项的不同之处只在于DPL：0x00->0x03  而IDT No.120并不用修改。
+	set_intr_gate_desc(121, /*(u32)&_intrs[i]*/ _intrs[121], 0x08, IGD, 0x03, 1);		//与IDT项的不同之处只在于DPL：ring0变成了ring3，0x00->0x03  而IDT No.120并不用修改。
 
 	//设置IDT第120项和第121项的handler！也就是switch_to_user_handler和switch_to_kern_handler.
 	handlers[120] = switch_to_user_handler;
 	handlers[121] = switch_to_kern_handler;
 
 	extern void system_intr(struct idtframe *frame);
+	set_intr_gate_desc(0x80, /*(u32)&_intrs[i]*/ _intrs[0x80], 0x08, IGD, 0x03, 1);		//int 0x80是给用户开放的。
 	handlers[0x80] = system_intr;
 }
 
