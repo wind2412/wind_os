@@ -10,6 +10,7 @@
 //系统调用需要的函数。调用的本体handler在tss.h中。
 int sys_exit(u32 arg[])
 {
+	sti();		//这里。由于好像不允许嵌套中断啊。所以，由于这里已经是int 0x80中断的范围了，因此进到这里，eflags寄存器的中断位(eflags|0x200)就被取消掉了。因此，要在这里手动开一下中断。要不我do_exit是一堆循环，那么时钟中断进不来啊。
 	do_exit(arg[1]);
 	return arg[1];		//errorCode.	但是其实是不会返回的。
 }
@@ -37,7 +38,8 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	struct idtframe *frame = current->frame;	//这个frame位于stack的末尾。中断结束会被调用。
 	frame->cs = 0x18|0x03;
 	frame->my_eax = frame->ss = 0x20|0x03;
-	frame->eflags |= 0x3000;
+	frame->eflags |= 0x3000;		//IO给用户开放
+	frame->eflags |= 0x200;			//中断给用户开放
 	frame->esp = pg_to_addr_la(user_stack_pg) + PAGE_SIZE;
 	//user_main被链接在内核空间，用户禁止访问的。因此，需要把user_main给“挪动”到pg上来，然后eip跳到pg上来执行。
 //	frame->eip = (u32)user_main;		//current->frame已经在之前的syscall被篡改成了中断向量的frame。因此，这里的frame实际上是中断向量0x80跳过来保存的frame。此函数设置完之后，会通过中断的后半部分pop来进行用户态的切换。

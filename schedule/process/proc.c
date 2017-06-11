@@ -171,6 +171,7 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 
 void do_exit(int errorCode)
 {
+	current->state = TASK_ZOMBIE;
 	panic("hahaha!!exit!!\n");
 }
 
