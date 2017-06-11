@@ -75,5 +75,4 @@ void switch_to_user_mode();
 void switch_to_kern_mode();
 
 
-
 #endif /* INCLUDE_TSS_H_ */

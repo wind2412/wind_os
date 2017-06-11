@@ -16,7 +16,8 @@ void timer_intr_init()
 	outb(0x40, (1193182/26) & 0xFF);					//时钟中断的输入频率是1193180，每秒中断200次
 	outb(0x40, ((1193182/26)>>8) & 0xFF);				//分两次低字节高字节写入0x40 I/O端口
 
-	handlers[32] = timer_handler;		//注册一个time_handler函数。
+//	handlers[32] = timer_handler;		//注册一个time_handler函数。
+	set_handler(32, timer_handler);
 }
 
 void timer_handler(struct idtframe *frame)

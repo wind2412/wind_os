@@ -89,7 +89,7 @@ void init()
 	vmm_init();
 	pic_init();
 	tss_init();
-	outb(0x21, 0x01);		//关了时钟中断......
+//	outb(0x21, 0x01);		//关了时钟中断......
 	timer_intr_init();
 	kbd_init();
 
@@ -104,7 +104,7 @@ void init()
 	test_swap();
 
 	proc_init();
-	schedule();
+//	schedule();
 
 	while(1);
 }

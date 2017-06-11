@@ -117,7 +117,7 @@ void proc_init()
 
 	proc_num ++;
 
-	if((kernel_thread(fn_init_kern_thread, NULL, 1)) == -1){		//创建一个进程1，init进程。init进程里边还会再创建一个进程2.作为用户进程的“躯体”
+	if((kernel_thread(fn_init_kern_thread, NULL, 0)) == -1){		//创建一个进程1，init进程。init进程里边还会再创建一个进程2.作为用户进程的“躯体”
 		panic("can't init_proc proc 1... wrong.\n");
 	}
 
@@ -226,6 +226,7 @@ void copy_thread(struct pcb_t *pcb, u32 stack, struct idtframe *frame)
 	*(pcb->frame) = *frame;
 	//设置frame->esp。虽然这个在内核态没啥大用。这个frame->esp会被用到“iret=>内核态切换到用户态 由iret恢复”。
 	pcb->frame->esp = stack;
+	pcb->frame->eflags |= 0x200;		//开启中断！！否则，时钟中断竟然不好使！！
 
 	pcb->context.esp = (u32)pcb->frame;		//注意传入的是frame的位置。但是要提取出来frame->myeax的话，需要解下引用～毕竟是指针，访问需要frame->myeax.汇编的话，如果把它放到%esp中，访问myeax需要是0(%esp).==> *(esp + 0)
 	extern u32 context_to_intr;		//C语言extern一个.globl字段的话，会自动得到内部的data值。如果需要得到.globl字段的地址，还要取&.....http://blog.csdn.net/smstong/article/details/54405649

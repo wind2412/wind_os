@@ -19,6 +19,6 @@ int sys_putc(u32 arg[]);
 //需要被执行的user函数
 int user_main();
 
-
+void system_intr(struct idtframe *frame);
 
 #endif /* INCLUDE_USER_H_ */
