@@ -10,7 +10,8 @@
 //系统调用需要的函数。调用的本体handler在tss.h中。
 int sys_exit(u32 arg[])
 {
-
+	do_exit(arg[1]);
+	return arg[1];		//errorCode.	但是其实是不会返回的。
 }
 
 int sys_fork(u32 arg[])
@@ -49,11 +50,13 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 
 	//参数就不做了......万一传进来一个神TM结构体.....莫非我还要用汇编重写吗......
 	//但是为了防止execve的函数return时能够有正确的返回值，应该现在此code页的最前边push一波do_exit的eip。
-	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(do_exit), "r"(pg_to_addr_la(code_pg)):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
+	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(pg_to_addr_la(code_pg)):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
 	memcpy((void *)(pg_to_addr_la(code_pg)+4), (void *)arg[0], PAGE_SIZE-4);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
 
 	frame->eip = pg_to_addr_la(code_pg)+4;	//user_main
 
+									//像是sys_execve函数，和其他不太一样。因为后来篡改了中断返回的函数，因此，本来就与其他中断不同的此函数从内核中调用（别的函数全从用户态调用），并且返回用户态。
+									//别的中断0x80函数都是：从用户态调用，并且突然跳进内核态执行，然后恢复现场返回了用户态。
 
 	return 0;
 }
@@ -65,7 +68,12 @@ int sys_print(u32 arg[])
 	return 0;
 }
 
-void print(const char *fmt)
+void exit_proc()
+{
+	asm volatile ("int $0x80;"::"a"(1), "b"(0));	//errorCode为0，保存在ebx中了。
+}
+
+void print(const char *fmt)		//print()用户态，触发中断int $0x80变为内核态-->system_intr()内核态，使用-->sys_print().先是内核态. 然后从中断中返回，会恢复中断之前的现场，即回归用户态。
 {							//此print只支持输入字符串。			现在是在用户态。
 	asm volatile ("int $0x80;"::"a"(30),"d"(fmt));		//放到edx中
 }
