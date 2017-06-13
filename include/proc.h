@@ -24,6 +24,11 @@ enum proc_lifecircle{
 	TASK_ZOMBIE = 3,
 };
 
+enum proc_waitstate{
+	NOT_WT	 = 0,
+	WT_CHILD = 1,
+};
+
 struct context{
 	u32 eip;
 	u32 ebx;
@@ -47,7 +52,9 @@ struct pcb_t{
 	struct pde_t *backup_pde;
 	struct context context;
 	struct idtframe *frame;
+	enum proc_waitstate waitstate;
 	u32 flags;
+	struct pcb_t *cptr, *yptr, *optr;
 	struct list_node node;
 };
 
@@ -94,6 +101,8 @@ int do_fork(u32 flags, u32 stack, struct idtframe *);
 int do_waitpid(int pid);
 
 void do_exit();
+
+void send_chld_to_init();
 
 int set_kthread_stack(struct pcb_t *pcb);
 

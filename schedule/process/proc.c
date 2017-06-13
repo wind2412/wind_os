@@ -68,6 +68,8 @@ struct pcb_t *create_pcb()
 	memset(&pcb->context, 0, sizeof(struct context));
 	pcb->backup_pde = pd;
 	pcb->parent = NULL;
+	pcb->waitstate = NOT_WT;
+	pcb->yptr = pcb->cptr = pcb->optr = NULL;
 	//node没有初始化
 	return pcb;
 }
@@ -96,6 +98,7 @@ int fn_sec_kern_thread(void *arg)		//进程2执行的函数
 int do_waitpid(int pid)
 {
 	printf("waitpid...\n");
+
 	return 0;
 }
 
@@ -163,6 +166,10 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 	proc_num ++;
 	copy_mm(pcb, 1);
 	copy_thread(pcb, stack, frame);
+	//这里要考虑全面！！如果父进程已经fork过其他的子进程的话
+	pcb->optr = pcb->parent->cptr;		//设置自己的哥哥
+	pcb->parent->cptr = pcb;			//设置成为爹爹的大儿子（
+	pcb->optr->yptr = pcb;				//设置哥哥的弟弟
 
 	wakeup_process(pcb);
 
@@ -171,9 +178,44 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 
 void do_exit(int errorCode)
 {
-	delete_mm(current->mm);
-	current->state = TASK_ZOMBIE;
-	panic("hahaha!!exit!!\n");
+	atom_disable_intr();		//一定要关闭中断啊！！要不这里会变得诡异了。时钟中断的插入会很有意思的......
+	{
+		printf("process %d finished. \n", current->pid);
+		printf("=======================\n");
+		delete_mm(current->mm);		//只不过此pcb块还没有被free掉。zombie进程。
+		current->state = TASK_ZOMBIE;
+		send_chld_to_init();
+	}
+	atom_enable_intr();
+	schedule();		//换走咯！
+	panic("hahaha!!exit!!\n");		//不会执行。
+}
+
+/*参加https://wenku.baidu.com/view/8202dd7602768e9951e73811.html第22页
+  各种pcb的ptr：用于描述进程的族亲关系。
+	pptr：指向的是当前pcb的父进程					cptr：指向的是当前pcb的【最新fork的】子进程
+	yptr：指向比当前进程年龄小(晚创建)的进程(弟弟)		optr：指向比自己年长的进程(早创建)(哥哥)
+*/
+void send_chld_to_init()
+{
+	struct pcb_t *parent = current->parent;
+	if(parent->waitstate == WT_CHILD){		//如果parent调用了do_wait()函数进行等待的话，就唤醒它。
+		wakeup_process(parent);
+	}
+
+	while(current->cptr != NULL){		//把所有活着的儿子全都托管给init进程.
+		struct pcb_t *child = current->cptr;
+		current->cptr = child->optr;						//但是当前执行的进程还是不会变的。还是这个即将死亡的进程。
+		child->yptr = NULL;									//不再有其他弟弟。因为将要成为init的首徒，不需要再有弟弟。
+		child->optr->yptr = NULL;							//把自己哥哥的弟弟解除关系。即在父亲的所有儿子里剔除自己。
+		child->optr = init_proc->cptr;						//自己的哥哥设置为init的第一个子进程。即init子进程中最年轻的。
+		if(init_proc->cptr)	init_proc->cptr->yptr = child;	//设置现在(init的第二个子进程)的哥哥的弟弟是自己
+		init_proc->cptr = child;							//设置init的首徒为自己
+		child->parent = init_proc;							//三姓家奴（
+		if(child->state == TASK_ZOMBIE && init_proc->waitstate == WT_CHILD){
+			wakeup_process(init_proc);
+		}
+	}
 }
 
 void delete_mm(struct mm_struct *mm)
@@ -193,10 +235,42 @@ void delete_mm(struct mm_struct *mm)
 			//先free整个vma对应的所有page
 			u32 vma_start = vma->vmm_start;
 			while(vma_start < vma->vmm_end){
-				struct pte_t *pte = get_pte(mm->pde, vma_start, 0);		//补全！！！！！！！！！
+				struct pte_t *pte = get_pte(mm->pde, vma_start, 0);
+				if(pte == NULL){		//如果pde没有表项的话==>跳过1024个页
+					vma_start += 1024 * PAGE_SIZE;
+				}else if(pte->page_addr != 0){
+					unmap(mm->pde, vma_start);
+					vma_start += PAGE_SIZE;
+				}else{
+					vma_start += PAGE_SIZE;
+				}
+			}
+			//再free页目录表pde所malloc出来的pte
+			vma_start = vma->vmm_start - vma->vmm_start % (1024 * PAGE_SIZE);	//这个比较难想。from ucore。
+			while(vma_start < vma->vmm_end){
+				if(mm->pde[vma_start >> 22].sign & 0x1){	//存在位......别忘了。这是细节。
+					extern struct Page *pages;
+					free_page(&pages[mm->pde[vma_start >> 22].pt_addr], 1);	//删除页目录表alloc对应的pte的page
+					mm->pde[vma_start >> 22].pt_addr = 0;
+					vma_start += PAGE_SIZE;
+				}else{
+					vma_start += PAGE_SIZE;
+				}
 			}
 			begin = begin->next;
 		}
+		//free整个malloc出来的页目录表pde
+		free_page(la_addr_to_pg((u32)mm->pde), 1);
+		//free mm结构体的vma
+		struct list_node *vma_begin = mm->vm_fifo.next;
+		while(vma_begin != &mm->vm_fifo){
+			struct list_node *temp = vma_begin;
+			vma_begin = vma_begin->next;
+			list_delete(temp);
+			free(GET_OUTER_STRUCT_PTR(temp, struct vma_struct, node));
+		}
+		//free mm结构体
+		free(mm);
 	}
 }
 
