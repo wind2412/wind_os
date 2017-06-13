@@ -40,22 +40,36 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	frame->my_eax = frame->ss = 0x20|0x03;
 	frame->eflags |= 0x3000;		//IO给用户开放
 	frame->eflags |= 0x200;			//中断给用户开放
-	frame->esp = pg_to_addr_la(user_stack_pg) + PAGE_SIZE;
+	frame->esp = pg_to_addr_la(user_stack_pg) + PAGE_SIZE - 4;	//最前边放着一个exit_proc函数的调用！
 	//user_main被链接在内核空间，用户禁止访问的。因此，需要把user_main给“挪动”到pg上来，然后eip跳到pg上来执行。
 //	frame->eip = (u32)user_main;		//current->frame已经在之前的syscall被篡改成了中断向量的frame。因此，这里的frame实际上是中断向量0x80跳过来保存的frame。此函数设置完之后，会通过中断的后半部分pop来进行用户态的切换。
+
+	//由于sys_exec是从内核空间出来的，因而必然pcb->mm为NULL。因此要设置个页目录表。变成用户的页目录表。
+	current->mm = create_mm(NULL);
+	struct Page *user_pde_pg = alloc_page(1);
+	struct pte_t *pde_pte = get_pte(current->backup_pde, pg_to_addr_la(user_pde_pg), 1);
+	pde_pte->page_addr = (pg_to_addr_pa(user_pde_pg) >> 12);		//必须注册！！
+	pde_pte->sign = 0x07;
+	memcpy((void *)pg_to_addr_la(user_pde_pg), current->backup_pde, PAGE_SIZE);	//复制内核的页表到用户的页表
+	current->mm->pde = (struct pde_t *)pg_to_addr_la(user_pde_pg);
+	current->backup_pde = current->mm->pde;
 
 	//创建代码页，把程序复制进来
 	struct Page *code_pg = alloc_page(1);
 	struct pte_t *code_pte = get_pte(current->backup_pde, pg_to_addr_la(code_pg), 1);
+	create_vma(current->mm, pg_to_addr_la(code_pg), pg_to_addr_la(code_pg) + PAGE_SIZE, 0x07);		//【创建一个vma，让此页可以换入换出！！】
 	code_pte->page_addr = (pg_to_addr_pa(code_pg) >> 12);		//千万是pa。。。。TAT  否则会崩溃。。。
 	code_pte->sign = 0x07;
 
 	//参数就不做了......万一传进来一个神TM结构体.....莫非我还要用汇编重写吗......
 	//但是为了防止execve的函数return时能够有正确的返回值，应该现在此code页的最前边push一波do_exit的eip。
-	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(pg_to_addr_la(code_pg)):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
-	memcpy((void *)(pg_to_addr_la(code_pg)+4), (void *)arg[0], PAGE_SIZE-4);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
+	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(pg_to_addr_la(user_stack_pg) + PAGE_SIZE - 4):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
+	memcpy((void *)(pg_to_addr_la(code_pg)), (void *)arg[0], PAGE_SIZE);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
 
-	frame->eip = pg_to_addr_la(code_pg)+4;	//user_main
+	frame->eip = pg_to_addr_la(code_pg);	//user_main
+
+		//注意：原理：把user_main函数放到用户进程的[代码页]中去执行。但是把exit_proc的地址放到用户进程的[用户栈]的栈顶去执行。注意最后eip指向[代码页]中的ret，这时esp会从[用户栈]去pop！！
+		//这样就能够让eip指向了exit_proc了！！注意，[代码页(代码段)]和[用户栈(数据段)]一定要分开！！
 
 									//像是sys_execve函数，和其他不太一样。因为后来篡改了中断返回的函数，因此，本来就与其他中断不同的此函数从内核中调用（别的函数全从用户态调用），并且返回用户态。
 									//别的中断0x80函数都是：从用户态调用，并且突然跳进内核态执行，然后恢复现场返回了用户态。

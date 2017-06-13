@@ -100,8 +100,8 @@ void page_fault(struct idtframe *frame)
     printf("page_fault triggered==> at cr2: %x.\n", cr2);
 //    printf("Page fault at EIP %x, virtual faulting address %x\n", frame->eip, cr2);
 //    printf("Error code: %x\n", frame->errorCode);
-
-//    // bit 0 为 0 指页面不存在内存里
+//
+    // bit 0 为 0 指页面不存在内存里
 //    if (frame->errorCode & 0x4) {
 //        printf("In user mode.\n");
 //    } else {
@@ -122,7 +122,7 @@ void page_fault(struct idtframe *frame)
     		break;
     	case 1:
     		//read一个present的页面 竟然还能出错？
-    		if((frame->errorCode & 0x4) == 1){
+    		if((frame->errorCode & 0x4) == /*1*/0x4){	////个大j8等于1！mdzz。。。
     			//此处查阅资料，我在这里添加了U/S保护的确认。
     			//如果errorCode & 0x1 == 1 则是：由于保护特权级别太高，造成无法读取，进而把bit1归0显示读错误。
     			//stackover flow: https://stackoverflow.com/questions/9759439/page-fault-shortage-of-page-or-access-violation

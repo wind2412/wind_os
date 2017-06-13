@@ -99,6 +99,8 @@ int set_kthread_stack(struct pcb_t *pcb);
 
 int copy_mm();
 
+void delete_mm(struct mm_struct *mm);
+
 void copy_thread(struct pcb_t *pcb, u32 stack, struct idtframe *);
 
 void wakeup_process(struct pcb_t *pcb);

@@ -171,8 +171,33 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 
 void do_exit(int errorCode)
 {
+	delete_mm(current->mm);
 	current->state = TASK_ZOMBIE;
 	panic("hahaha!!exit!!\n");
+}
+
+void delete_mm(struct mm_struct *mm)
+{
+	if(mm == NULL)	return;
+
+	mm->num -= 1;	//引用计数 - 1
+	extern struct pde_t *pd;
+	//重新设置页目录表!!
+	asm volatile ("movl %0, %%cr3"::"r"(pd));
+
+	if(mm->num == 0){		//真·remove
+		//先处理vma虚拟内存
+		struct list_node *begin = mm->vm_fifo.next;
+		while(begin != &mm->vm_fifo){
+			struct vma_struct *vma = GET_OUTER_STRUCT_PTR(begin, struct vma_struct, node);
+			//先free整个vma对应的所有page
+			u32 vma_start = vma->vmm_start;
+			while(vma_start < vma->vmm_end){
+				struct pte_t *pte = get_pte(mm->pde, vma_start, 0);		//补全！！！！！！！！！
+			}
+			begin = begin->next;
+		}
+	}
 }
 
 int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函数		//bug..
