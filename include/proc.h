@@ -115,6 +115,8 @@ void wakeup_process(struct pcb_t *pcb);
 
 extern void switch_to(struct context *current, struct context *next);
 
+extern void schedule();
+
 void run_thread();
 
 #endif /* INCLUDE_PROC_H_ */

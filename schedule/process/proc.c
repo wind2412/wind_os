@@ -83,6 +83,8 @@ int fn_init_kern_thread(void *arg)		//init进程执行的函数。
 {
 	int pid = kernel_thread(fn_sec_kern_thread, NULL, 1);	//create proc No.2 and share mm.
 
+//	schedule();		//这时候还没开始运行创建的新线程。因此调度一下才行。否则init进程就要退出了。===> 这段话是waitpid没写完之前写的。
+	printf("init is waiting...pid %d\n", pid);
 	return do_waitpid(pid);
 }
 
@@ -94,9 +96,58 @@ int fn_sec_kern_thread(void *arg)		//进程2执行的函数
 	return errorCode;
 }
 
+int recycle_child(struct pcb_t *child)
+{
+	printf("waitpid %d end!\n", child->pid);
+	//remove links
+	if(child->yptr != NULL)		child->yptr->optr = child->optr;	else	child->parent->cptr = child->optr;	//没有更年轻的，就只能给年老的了。
+	if(child->optr != NULL)		child->optr->yptr = child->yptr;
+	//free stack
+	free_page(la_addr_to_pg(child->start_stack - PAGE_SIZE * KTHREAD_STACK_PAGE), KTHREAD_STACK_PAGE);
+	//free pcb
+	free(child);
+	return 0;
+}
+
+//其实就是找到zombie子进程并进行zombie子进程的stack和pcb的回收而已。
 int do_waitpid(int pid)
 {
-	printf("waitpid...\n");
+	printf("waitpid %d begin...\n", pid);
+	int has_child = 0;
+	struct list_node *begin = proc_list.next;
+	if(pid == 0){		//如果是0，就随便选择current的子进程中的一个zombie
+		while(1){
+			while(begin != &proc_list){
+				struct pcb_t *chd = GET_OUTER_STRUCT_PTR(begin, struct pcb_t, node);
+				if(chd->parent == current){
+					has_child = 1;
+					if(chd->state == TASK_ZOMBIE)	return recycle_child(chd);
+				}
+				begin = begin->next;
+			}
+			if(has_child == 0) 	{
+				printf("waitpid wrong!\n");
+				return -1;		//出错。current根本没有子进程。
+			}
+			else				schedule();		//如果有child，而且全不是zombie，那么就schedule好了。等到什么时候schedule回来，就会继续执行这里了。
+		}
+	}else{
+		while(begin != &proc_list){
+			struct pcb_t *chd = GET_OUTER_STRUCT_PTR(begin, struct pcb_t, node);
+			if(chd->pid == pid){		//找到
+				if(chd->parent == current){	//符合
+					while(1){
+						if(chd->state == TASK_ZOMBIE)	return recycle_child(chd);
+						else							schedule();
+					}
+				}else{						//不符
+					printf("waitpid wrong!\n");
+					return -1;
+				}
+			}
+			begin = begin->next;
+		}
+	}
 
 	return 0;
 }
@@ -140,6 +191,7 @@ int kernel_thread(int (*fn)(void *), void *arg, u32 flags)
 	return do_fork(flags, 0, &frame);
 }
 
+//实际上，do_fork只深拷贝了一份页表。其余的全是浅拷贝。
 int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实并不算fork。它的pcb全是通过额外传入的参数frame设置的。如果是fork，理当从current->frame设置吧。
 {
 	if(proc_num > MAX_PROCESS)	return -1;
@@ -171,7 +223,19 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 
 	wakeup_process(pcb);
 
-	return pcb->pid;
+	//由于trapframe中复制了所有的寄存器和指针(虽然没有复制代码段和数据段，但是指向了同一个位置)，因此后边的执行流程也是和parent一样的，因此被schedule之后，后边的判断也会两个都执行。所以就可以判断不同了。
+	//后边的代码父子都是一样的，不同的只是全局变量current～
+
+	//其实fork并不是“有两个返回值”，而是因为有两个进程，从而其实是有“两个fork”。C语言有且仅有一个返回值。
+
+	printf("current: pid=> %d\n", current->pid);		//这里看看有什么问题。
+
+	if(current == pcb){
+		return 0;			//如果现在是子进程
+	}else{
+		return pcb->pid;	//返回子进程pid
+	}
+
 }
 
 void do_exit(int errorCode)
