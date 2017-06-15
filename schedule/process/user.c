@@ -33,11 +33,11 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 {
 //	arg[0](arg[1]);	//使用execve调用用户态函数。(这里即user_main)
 
-	//创建用户栈。	//就用pid=2的栈好了。
-//	struct Page *user_stack_pg = alloc_page(1);	//用户栈只有一页
-//	struct pte_t *pte = get_pte(current->backup_pde, pg_to_addr_la(user_stack_pg), 1);
-//	pte->page_addr = (pg_to_addr_pa(user_stack_pg) >> 12);
-//	pte->sign = 0x07;
+	//创建用户栈。	//就用pid=2的栈好了。————不太好，虽然execve是占有了整个stack，但是毕竟返回信息什么的还在原先pid=2的栈中。如果占用了，不一定什么后果呢。
+	struct Page *user_stack_pg = alloc_page(1);	//用户栈只有一页
+	struct pte_t *pte = get_pte(current->backup_pde, pg_to_addr_la(user_stack_pg), 1);
+	pte->page_addr = (pg_to_addr_pa(user_stack_pg) >> 12);
+	pte->sign = 0x07;
 //	struct Page *user_stack_pg = la_addr_to_pg(current->start_stack - KTHREAD_STACK_PAGE * PAGE_SIZE);
 
 	struct idtframe *frame = current->frame;	//这个frame位于stack的末尾。中断结束会被调用。
@@ -45,9 +45,10 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	frame->my_eax = frame->ss = 0x20|0x03;
 	frame->eflags |= 0x3000;		//IO给用户开放
 	frame->eflags |= 0x200;			//中断给用户开放
-//	frame->esp = pg_to_addr_la(user_stack_pg) + KTHREAD_STACK_PAGE * PAGE_SIZE - 4;	//最前边放着一个exit_proc函数的调用！
+	frame->esp = pg_to_addr_la(user_stack_pg) + PAGE_SIZE- 4;	//最前边放着一个exit_proc函数的调用！
 	//user_main被链接在内核空间，用户禁止访问的。因此，需要把user_main给“挪动”到pg上来，然后eip跳到pg上来执行。
 //	frame->eip = (u32)user_main;		//current->frame已经在之前的syscall被篡改成了中断向量的frame。因此，这里的frame实际上是中断向量0x80跳过来保存的frame。此函数设置完之后，会通过中断的后半部分pop来进行用户态的切换。
+//	frame->esp = current->start_stack;		//必须设置！！！因为将要从内核态切回用户态！！！所以这个frame->esp实际上是会通过iret指令来切换的！如果不设置，就错了！！\\
 
 	//由于sys_exec是从内核空间出来的，因而必然pcb->mm为NULL。因此要设置个页目录表。变成用户的页目录表。
 	current->mm = create_mm(NULL);
@@ -68,7 +69,7 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 
 	//参数就不做了......万一传进来一个神TM结构体.....莫非我还要用汇编重写吗......
 	//但是为了防止execve的函数return时能够有正确的返回值，应该现在[用户栈]的最前边push一波do_exit的eip。//但是其实这样有个弊端，就是其实如果是在用户态下，cs:eip是无法访问栈的。因为虽然叫做“用户栈”，其实那个栈也只有内核态下的cs:eip和esp能访问。do_fork并没有带有那种更改用户态的接口。
-	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(current->start_stack - 4/*pg_to_addr_la(user_stack_pg) + KTHREAD_STACK_PAGE * PAGE_SIZE - 4*/):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
+	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(/*current->start_stack - 4*/pg_to_addr_la(user_stack_pg) + PAGE_SIZE - 4):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
 	memcpy((void *)(pg_to_addr_la(code_pg)), (void *)arg[0], PAGE_SIZE);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
 
 	frame->eip = pg_to_addr_la(code_pg);	//user_main
@@ -118,9 +119,9 @@ int user_main(){
 
 	int pid;
 	if((pid = fork()) != 0){
-		printf("this is the father process.\n");
+		print("this is the father process.\n");
 	}else{
-		printf("this is the child process.\n");
+		print("this is the child process.\n");
 	}
 //
 //	waitpid(pid);
