@@ -38,7 +38,7 @@ struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已
 				swap_out(mm, 1);
 			}
 
-//			printf("alloc a page: %x\n", pg_to_addr_la((struct Page *)((u32)page + VERTUAL_MEM)));
+			printf("alloc %d page: %x\n", n, pg_to_addr_la((struct Page *)((u32)page + VERTUAL_MEM)));
 
 			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回la更好。
 		}

@@ -63,7 +63,6 @@ struct pcb_t *create_pcb()
 	pcb->state = TASK_READY;
 	pcb->pid = -1;
 	pcb->start_stack = 0;
-	pcb->flags = 0;
 	pcb->mm = NULL;
 	memset(&pcb->context, 0, sizeof(struct context));
 	pcb->backup_pde = pd;
@@ -138,7 +137,7 @@ int kernel_thread(int (*fn)(void *), void *arg, u32 flags)
 	frame.edx = (u32)arg;
 	frame.eip = (u32)kernel_thread_entry;	//在switch_to之后，eip会被设置为copy_thread内部pcb->context.eip。此eip设置为中断my_push的中间后部pop恢复寄存器部分。
 											//届时iret时，eip会被恢复成frame.eip==>kernel_thread_entry.然后就会执行ebx，edx中的fn函数了。之后线程消亡。
-	return do_fork(flags, 0, &frame);		//????????
+	return do_fork(flags, 0, &frame);
 }
 
 int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实并不算fork。它的pcb全是通过额外传入的参数frame设置的。如果是fork，理当从current->frame设置吧。
@@ -160,11 +159,10 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 		free_page(la_addr_to_pg(pcb->start_stack), KTHREAD_STACK_PAGE);
 		return -1;
 	}
-	pcb->flags = flags;
 	pcb->parent = current;
 	list_insert_after(&proc_list, &pcb->node);		//插入node
 	proc_num ++;
-	copy_mm(pcb, 1);
+	copy_mm(pcb, flags);
 	copy_thread(pcb, stack, frame);
 	//这里要考虑全面！！如果父进程已经fork过其他的子进程的话
 	pcb->optr = pcb->parent->cptr;		//设置自己的哥哥
@@ -229,8 +227,8 @@ void delete_mm(struct mm_struct *mm)
 
 	if(mm->num == 0){		//真·remove
 		//先处理vma虚拟内存
-		struct list_node *begin = mm->vm_fifo.next;
-		while(begin != &mm->vm_fifo){
+		struct list_node *begin = mm->node.next;
+		while(begin != &mm->node){
 			struct vma_struct *vma = GET_OUTER_STRUCT_PTR(begin, struct vma_struct, node);
 			//先free整个vma对应的所有page
 			u32 vma_start = vma->vmm_start;
@@ -262,8 +260,8 @@ void delete_mm(struct mm_struct *mm)
 		//free整个malloc出来的页目录表pde
 		free_page(la_addr_to_pg((u32)mm->pde), 1);
 		//free mm结构体的vma
-		struct list_node *vma_begin = mm->vm_fifo.next;
-		while(vma_begin != &mm->vm_fifo){
+		struct list_node *vma_begin = mm->node.next;
+		while(vma_begin != &mm->node){
 			struct list_node *temp = vma_begin;
 			vma_begin = vma_begin->next;
 			list_delete(temp);
@@ -284,17 +282,29 @@ int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函
 		return 0;
 	}else{		//必须复制一份。
 		struct mm_struct *mm = (struct mm_struct *)malloc(sizeof(struct mm_struct));
-		memcpy(&mm, &old_mm, sizeof(struct mm_struct));
+		memcpy(mm, old_mm, sizeof(struct mm_struct));		//混账。。。写成了memcpy(&mm, &old_mm, sizeof(struct mm_struct));调了一个晚上。。..
+		list_init(&mm->node);		//必须重新init一遍！！否则，mm->node的prev和next信息还是old_mm的！！这会造成下边没法插入！想要复制old_vmm并插入，就必须清除mm->node信息。
 		pcb->mm = mm;
 
+		//调了一个上午......发现没复制页目录表......这样，后边的复制页表的时候.....map()函数因为基于原来的进程页目录表修改，所以原先已有的页表会触发upmap()....于是原先的进程就出错了......
+		//把页目录表弄过来。
+		struct Page *new_pde = alloc_page(1);
+		mm->pde = (struct pde_t *)pg_to_addr_la(new_pde);		//设置新的pde......
+		memcpy(mm->pde, old_mm->pde, PAGE_SIZE);
+		pcb->backup_pde = mm->pde;
+
 		//copy vmm
-		struct list_node *begin = (&old_mm->vm_fifo)->next;
-		while(begin != &old_mm->vm_fifo){
+		struct list_node *begin = old_mm->node.next;
+		while(begin != &old_mm->node){
 			struct vma_struct *old_vma = GET_OUTER_STRUCT_PTR(begin, struct vma_struct, node);
+
+			printf("mm.....%x\n", mm);
+			printf("old_vma->vmm_start:%x, old_vma->vma_end:%x\n", old_vma->vmm_start, old_vma->vmm_end);
+
 			create_vma(mm, old_vma->vmm_start, old_vma->vmm_end, old_vma->flags);		//创建并插入vma
 
+
 			//不做错误检查了。简直。。。也没有时间了。
-			//把页目录表弄过来。
 			u32 start = old_vma->vmm_start;
 			while(start < old_vma->vmm_end){
 				struct pte_t *old_pte = get_pte(old_mm->pde, start, 0);
@@ -303,7 +313,13 @@ int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函
 					continue;
 				}
 				if(old_pte->sign & 0x1)	{		//如果old_pte不是虚拟内存，则创建start对应的pte。[否则不创建？？？]
-					get_pte(mm->pde, start, 1);
+					//这里有大bug。由于pde是复制的，但是pde中的pte的指向还是old和new_pde指向同一个alloc的pte页的。所以如果unmap的话，也会发生故障啊。
+					//解决方法就是，把这个pte页也复制一个。
+					struct pte_t *pte = get_pte(mm->pde, start, 1);
+					if(pte == old_pte){		//如果相等，就说明pte和old_pte指向同一处了。这样，在这里的fork的子进程配置中修改会影响到current进程的页表！！
+						mm->pde[start >> 22].sign = 0x4|0x2;	//把pde中对应的pte表项的present位给抹除。
+						pte = get_pte(mm->pde, start, 1);		//把pde抹除之后，就可以重新分配pte了。重新映射！
+					}
 					u32 old_page_addr_la = get_pg_addr_la(old_pte);		//被复制的page地址
 					struct Page *page = alloc_page(1);
 					u32 page_addr_pa = pg_to_addr_pa(page);				//新页page地址
@@ -313,6 +329,7 @@ int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函
 				}
 				start += PAGE_SIZE;
 			}
+			begin = begin->next;
 		}
 	}
 

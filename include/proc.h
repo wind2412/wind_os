@@ -53,7 +53,6 @@ struct pcb_t{
 	struct context context;
 	struct idtframe *frame;
 	enum proc_waitstate waitstate;
-	u32 flags;
 	struct pcb_t *cptr, *yptr, *optr;
 	struct list_node node;
 };

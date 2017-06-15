@@ -21,7 +21,9 @@ int user_main();
 
 int sys_print(u32 arg[]);
 
-void exit_proc();
+int exit_proc();
+
+int print(const char *fmt);
 
 void system_intr(struct idtframe *frame);
 

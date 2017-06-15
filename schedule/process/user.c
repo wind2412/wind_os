@@ -17,7 +17,9 @@ int sys_exit(u32 arg[])
 
 int sys_fork(u32 arg[])
 {
-
+	struct idtframe *frame = current->frame;
+	printf("[user fork()]\n");
+	return do_fork(0, frame->esp, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。
 }
 
 int sys_wait(u32 arg[])
@@ -25,22 +27,25 @@ int sys_wait(u32 arg[])
 
 }
 
+
+//execve：当且仅当执行了execve，才会有mm！否则kern_thread的所有pcb->mm全是NULL！！！
 int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。		//此函数还在内核模式中。但是，只要出去由中断恢复了，那么就会变成用户态了。
 {
 //	arg[0](arg[1]);	//使用execve调用用户态函数。(这里即user_main)
 
-	//创建用户栈。
-	struct Page *user_stack_pg = alloc_page(1);	//用户栈只有一页
-	struct pte_t *pte = get_pte(current->backup_pde, pg_to_addr_la(user_stack_pg), 1);
-	pte->page_addr = (pg_to_addr_pa(user_stack_pg) >> 12);
-	pte->sign = 0x07;
+	//创建用户栈。	//就用pid=2的栈好了。
+//	struct Page *user_stack_pg = alloc_page(1);	//用户栈只有一页
+//	struct pte_t *pte = get_pte(current->backup_pde, pg_to_addr_la(user_stack_pg), 1);
+//	pte->page_addr = (pg_to_addr_pa(user_stack_pg) >> 12);
+//	pte->sign = 0x07;
+//	struct Page *user_stack_pg = la_addr_to_pg(current->start_stack - KTHREAD_STACK_PAGE * PAGE_SIZE);
 
 	struct idtframe *frame = current->frame;	//这个frame位于stack的末尾。中断结束会被调用。
 	frame->cs = 0x18|0x03;
 	frame->my_eax = frame->ss = 0x20|0x03;
 	frame->eflags |= 0x3000;		//IO给用户开放
 	frame->eflags |= 0x200;			//中断给用户开放
-	frame->esp = pg_to_addr_la(user_stack_pg) + PAGE_SIZE - 4;	//最前边放着一个exit_proc函数的调用！
+//	frame->esp = pg_to_addr_la(user_stack_pg) + KTHREAD_STACK_PAGE * PAGE_SIZE - 4;	//最前边放着一个exit_proc函数的调用！
 	//user_main被链接在内核空间，用户禁止访问的。因此，需要把user_main给“挪动”到pg上来，然后eip跳到pg上来执行。
 //	frame->eip = (u32)user_main;		//current->frame已经在之前的syscall被篡改成了中断向量的frame。因此，这里的frame实际上是中断向量0x80跳过来保存的frame。此函数设置完之后，会通过中断的后半部分pop来进行用户态的切换。
 
@@ -62,8 +67,8 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	code_pte->sign = 0x07;
 
 	//参数就不做了......万一传进来一个神TM结构体.....莫非我还要用汇编重写吗......
-	//但是为了防止execve的函数return时能够有正确的返回值，应该现在此code页的最前边push一波do_exit的eip。
-	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(pg_to_addr_la(user_stack_pg) + PAGE_SIZE - 4):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
+	//但是为了防止execve的函数return时能够有正确的返回值，应该现在[用户栈]的最前边push一波do_exit的eip。//但是其实这样有个弊端，就是其实如果是在用户态下，cs:eip是无法访问栈的。因为虽然叫做“用户栈”，其实那个栈也只有内核态下的cs:eip和esp能访问。do_fork并没有带有那种更改用户态的接口。
+	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(current->start_stack - 4/*pg_to_addr_la(user_stack_pg) + KTHREAD_STACK_PAGE * PAGE_SIZE - 4*/):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
 	memcpy((void *)(pg_to_addr_la(code_pg)), (void *)arg[0], PAGE_SIZE);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
 
 	frame->eip = pg_to_addr_la(code_pg);	//user_main
@@ -73,6 +78,8 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 
 									//像是sys_execve函数，和其他不太一样。因为后来篡改了中断返回的函数，因此，本来就与其他中断不同的此函数从内核中调用（别的函数全从用户态调用），并且返回用户态。
 									//别的中断0x80函数都是：从用户态调用，并且突然跳进内核态执行，然后恢复现场返回了用户态。
+
+	//之后最后用户态的代码user_main执行完毕之后，就会exit。但是这还是在用户态。知道schedule()生效，会保存这里的东西到pcb，然后切换到另一个进程，这样的话，就会跳到另一个进程的“态”中去。因此，和是否停留在用户态没有必然的关系。
 
 	return 0;
 }
@@ -84,28 +91,40 @@ int sys_print(u32 arg[])
 	return 0;
 }
 
-void exit_proc()
+int exit_proc()
 {
-	asm volatile ("int $0x80;"::"a"(1), "b"(0));	//errorCode为0，保存在ebx中了。
+	int ret;
+	asm volatile ("int $0x80;":"=a"(ret):"a"(1), "b"(0));	//errorCode为0，保存在ebx中了。
+	return ret;
 }
 
-void print(const char *fmt)		//print()用户态，触发中断int $0x80变为内核态-->system_intr()内核态，使用-->sys_print().先是内核态. 然后从中断中返回，会恢复中断之前的现场，即回归用户态。
+int fork()
+{
+	int pid;
+	asm volatile ("int $0x80;":"=a"(pid):"a"(2));
+	return pid;
+}
+
+int print(const char *fmt)		//print()用户态，触发中断int $0x80变为内核态-->system_intr()内核态，使用-->sys_print().先是内核态. 然后从中断中返回，会恢复中断之前的现场，即回归用户态。
 {							//此print只支持输入字符串。			现在是在用户态。
-	asm volatile ("int $0x80;"::"a"(30),"d"(fmt));		//放到edx中
+	int ret;
+	asm volatile ("int $0x80;":"=a"(ret):"a"(30),"d"(fmt));		//放到edx中
+	return ret;
 }
 
 //需要被执行的user函数
 int user_main(){
 	print("user_main....\n");
-	return 0;
-//	int pid;
-//	if((pid = fork()) != 0){
-//		printf("this is the father process.\n");
-//	}else{
-//		printf("this is the child process.\n");
-//	}
+
+	int pid;
+	if((pid = fork()) != 0){
+		printf("this is the father process.\n");
+	}else{
+		printf("this is the child process.\n");
+	}
 //
 //	waitpid(pid);
+	return 0;
 }
 
 
