@@ -289,7 +289,7 @@ int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函
 		//调了一个上午......发现没复制页目录表......这样，后边的复制页表的时候.....map()函数因为基于原来的进程页目录表修改，所以原先已有的页表会触发upmap()....于是原先的进程就出错了......
 		//把页目录表弄过来。
 		struct Page *new_pde = alloc_page(1);
-		mm->pde = (struct pde_t *)pg_to_addr_la(new_pde);		//设置新的pde......
+		mm->pde = (struct pde_t *)pg_to_addr_pa(new_pde);		//设置新的pde......	//卧槽。。。。改成pa才可以！！！。。。。简直。。。。调的要吐血了
 		memcpy(mm->pde, old_mm->pde, PAGE_SIZE);
 		pcb->backup_pde = mm->pde;
 
@@ -319,6 +319,9 @@ int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函
 					if(pte == old_pte){		//如果相等，就说明pte和old_pte指向同一处了。这样，在这里的fork的子进程配置中修改会影响到current进程的页表！！
 						mm->pde[start >> 22].sign = 0x4|0x2;	//把pde中对应的pte表项的present位给抹除。
 						pte = get_pte(mm->pde, start, 1);		//把pde抹除之后，就可以重新分配pte了。重新映射！
+						//现在整个mm->pde[start>>22].pt_addr这个新alloc的页，本来是要存放1024个页表的，但是现在全是空的！！要copy过来啊......
+						//算出pde中start对应那项alloc的pte页的内存地址！
+						memcpy((void *)((mm->pde[start >> 22].pt_addr << 12) + VERTUAL_MEM), (const void *)((old_mm->pde[start >> 22].pt_addr << 12) + VERTUAL_MEM), PAGE_SIZE);
 					}
 					u32 old_page_addr_la = get_pg_addr_la(old_pte);		//被复制的page地址
 					struct Page *page = alloc_page(1);
@@ -332,6 +335,7 @@ int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函
 			begin = begin->next;
 		}
 	}
+
 
 	return 0;
 }

@@ -48,7 +48,7 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	frame->esp = pg_to_addr_la(user_stack_pg) + PAGE_SIZE- 4;	//最前边放着一个exit_proc函数的调用！
 	//user_main被链接在内核空间，用户禁止访问的。因此，需要把user_main给“挪动”到pg上来，然后eip跳到pg上来执行。
 //	frame->eip = (u32)user_main;		//current->frame已经在之前的syscall被篡改成了中断向量的frame。因此，这里的frame实际上是中断向量0x80跳过来保存的frame。此函数设置完之后，会通过中断的后半部分pop来进行用户态的切换。
-//	frame->esp = current->start_stack;		//必须设置！！！因为将要从内核态切回用户态！！！所以这个frame->esp实际上是会通过iret指令来切换的！如果不设置，就错了！！\\
+//	frame->esp = current->start_stack;		//必须设置！！！因为将要从内核态切回用户态！！！所以这个frame->esp实际上是会通过iret指令来切换的！如果不设置，就错了！！
 
 	//由于sys_exec是从内核空间出来的，因而必然pcb->mm为NULL。因此要设置个页目录表。变成用户的页目录表。
 	current->mm = create_mm(NULL);
