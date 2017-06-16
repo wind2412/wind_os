@@ -17,7 +17,10 @@ int sys_exit(u32 arg[])
 
 int sys_fork(u32 arg[])
 {
-	struct idtframe *frame = current->frame;
+	struct idtframe *frame = current->frame;			//把当前进程的current->frame交给do_fork来复制所有寄存器！	而kern_thread中，frame是自己指定的，然后交给了do_fork进行复制了！！而用户进程还多了个mm，这就是区别！！
+//	printf("frame->eip: %x\n", frame->eip);				//【深入：这里的frame->eip值其实是调用此sys_fork的int 0x80时push的eip！而这个eip值并不是人为来push的！而是CPU通过call来自动push的。而这个push的eip还被设成是trapframe的最后一部分！而且，由于是call来push，因此push的是int 0x80的“下一条”指令！！】
+	////这里，在未来的do_fork中，把整个frame复制了一份。而eip停留在刚才所说的【int 0x80的下一条指令】。因此可以知道：新的进程将会从int 0x80中断完毕返回之后的下一条指令执行！！因此，这也解释了为什么这个函数总是返回子进程的同一个pid值3！！因为这个函数，并不是fork出来的新进程的执行范围！！新的进程的eip在此函数返回之后！！
+	printf("frame->eax: %x\n", frame->eax);
 	printf("[user fork()]\n");
 	//do_fork的参数4的意思是stack栈顶要收缩4个单位存放exit_proc......而且创建的是用户进程。
 //	printf("=====current->start_stack: %x\n", current->start_stack);
@@ -25,6 +28,11 @@ int sys_fork(u32 arg[])
 //	printf("=====current->start_stack - frame->esp: %x\n", current->start_stack - frame->esp);
 	int pid = do_fork(0, frame->esp/*current->start_stack - frame->esp*/, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。		//唉，后来我可耻地改成了偏移量（
 								//这里，改成了current->start_stack和frame->esp的偏移量。也就是说，届时会把偏移量平移到此fork的新子进程中。这样，两个子进程的栈才是一模一样而且完全独立的。否则如果设置为frame->esp，新的子进程的stack会跳到旧的stack中去......
+
+	//注意：因为frame中，除了eip之外所有的值都是执行此函数之前的“过去的值”，而只有eip本身是“未来的值”。因此，此函数为了保证fork完全正确，也就是创建的新进程完全和原进程一样，那么【这个函数】就不可以改变esp什么重要寄存器的值了。这样才能保证跳出此函数的时候，current进程和进入此函数之前一样，esp都没变，但是eip已经变成当时设置的“未来的值”了。实在是太巧妙了！！
+	//而，current和child进程【唯一】的不同就是，current执行了此函数，并且获得了返回值pid。而child因为直接从“eip的未来”执行，因此，并没有走此函数！！因此，eax还是原来的值！！并没有经过此函数返回！！！千万小心！！因此我的fork两次结果一次是正确的3，一次是不正确的2，正因为后边那次（子进程开启），根本没通过此函数获取返回值，而是沿用了之前保存的eax的值！！而原先eax值是2！！所以也就返回2了！！！
+	//【【【解决方法】】】：所以，只要在int调用的中转函数的地方【之前】直接把eax归零就可以啦！！！无论调不调用这个函数，eax初始值都是0.如果调用此函数，eax就返回3，不调用的话，维持0就好啦～～
+	//卧槽这段分析简直牛逼炸裂啊～～我都要跪服了啊哈哈哈哈！！
 	printf("[fork() over]\n");
 	return pid;
 }
@@ -101,7 +109,7 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 
 int sys_print(u32 arg[])
 {
-	const char *fmt = (const char *)arg[2];
+	const char *fmt = (const char *)arg[0];
 	printf("%s\n", fmt);		//调用kernel的printf函数
 	return 0;
 }
@@ -116,7 +124,7 @@ int sys_getpid(u32 arg[])
 int exit_proc()
 {
 	int ret;
-	asm volatile ("int $0x80;":"=a"(ret):"a"(1), "b"(0));	//errorCode为0，保存在ebx中了。
+	asm volatile ("int $0x80;":"=a"(ret):"d"(1), "b"(0));	//errorCode为0，保存在ebx中了。
 	return ret;
 }
 
@@ -124,31 +132,36 @@ int getpid();
 
 __attribute__((always_inline)) inline int fork()		//用户态下嵌套中断不知道可不可以？
 {
-	int pid;
-	asm volatile ("int $0x80;":"=a"(pid):"a"(2));
+	int pid = 0;		//我开始就赋值返回值为0，正常一定这里会执行。只不过，如果是current父进程，接下来会走下边的int 0x80调用。但是如果是子进程，因为int触发中断，frame的eip自动被压入下一条指令的eip值，即【汇编中】0x80的下一条～总之int 0x80不会执行第二次，而是跳过。但是返回值还会赋值到pid中。。。
+	asm volatile ("int $0x80;":"=a"(pid):"d"(2));
 //	if(pid == current->pid)		return 0;		//current由于加载不到页上，因此得不到。但是果然还是通过0x80系统调用更好吧。
-	if(pid == getpid())			return 0;
-	else 						return pid;
+
+//	if(pid == 2)	print("2;;;;;;\n");		//留个回忆～～要不也不能有上面一大段分析！～
+//	else if(pid == 3)	print("3;;;;;;\n");
+
+//	if(pid == getpid())			return 0;
+//	else 						return pid;
+	return pid;					//直接返回就好啦～～因为已经eax清零了～原先的垃圾值不见啦～		//如果是fork产生的child进程，那么就会直接从这里执行～～
 }
 
 int waitpid(int pid)
 {
 	int ret;
-	asm volatile ("int $0x80;":"=a"(ret):"a"(3), "c"(pid));
+	asm volatile ("int $0x80;":"=a"(ret):"d"(3), "c"(pid));
 	return ret;
 }
 
 int getpid()
 {
 	int pid;
-	asm volatile ("int $0x80;":"=a"(pid):"a"(5));
+	asm volatile ("int $0x80;":"=a"(pid):"d"(5));
 	return pid;
 }
 
 int print(const char *fmt)		//print()用户态，触发中断int $0x80变为内核态-->system_intr()内核态，使用-->sys_print().先是内核态. 然后从中断中返回，会恢复中断之前的现场，即回归用户态。
 {							//此print只支持输入字符串。			现在是在用户态。
 	int ret;
-	asm volatile ("int $0x80;":"=a"(ret):"a"(30),"d"(fmt));		//放到edx中
+	asm volatile ("int $0x80;":"=a"(ret):"d"(30),"b"(fmt));		//放到edx中
 	return ret;
 }
 
@@ -185,18 +198,18 @@ int (*system_call[])(u32 arg[]) = {
 //系统调用中断的handler(通用)
 void system_intr(struct idtframe *frame)
 {
-	int syscall_num = frame->eax;
+	int syscall_num = frame->edx;
 	u32 fn = frame->ebx;
 	u32 argu = frame->ecx;	//假设函数有个参数。会存放在ecx中
-	u32 fmt = frame->edx;
 	u32 arg[5];
 	memset(arg, 0, sizeof(arg));
 	arg[0] = fn;
 	arg[1] = argu;
-	arg[2] = fmt;
 	extern struct pcb_t *current;
 	struct idtframe *old_frame = current->frame;		//这个篡改是专门给execve设置用的。
 	current->frame = frame;		//篡改current->frame.让execve的用户态能够蹦到内核态。
+//	if(syscall_num == 2)	asm volatile ("movl $0, %eax");			//如果是fork调用，因为上边的分析，需要让eax清空。否则现在的eax值会延续并影响到子进程开始的eax值，条件判断的时候就会误判子进程fork()返回的值为原先的垃圾值！
+	//很残念以上不行。因为如果是child进程，直接从int之后一条开始执行。所以，这里也是执行不到的。必须在int之前正正好好把它清零才行啊。所以我不得不改变系统调用的默认值啊。。原先由eax获得系统中断号，现在要改改了......然而后来发现也不用～因为有fork()的局部变量pid存在啊～见fork()函数实现～
 	frame->eax = system_call[syscall_num](arg);		//呼叫内核函数
 	current->frame = old_frame;
 }

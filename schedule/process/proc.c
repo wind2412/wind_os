@@ -92,7 +92,7 @@ int fn_sec_kern_thread(void *arg)		//进程2执行的函数
 {
 	int errorCode;
 	extern int user_main();
-	asm volatile ("int $0x80;":"=a"(errorCode):"a"(4), "b"(user_main));		//系统调用execve函数，虽然这是一个内核进程，但是还是evecve一个用户程序。和linux开机时在内核态execve一个/bin/bash是一样的。
+	asm volatile ("int $0x80;":"=a"(errorCode):"d"(4), "b"(user_main));		//系统调用execve函数，虽然这是一个内核进程，但是还是evecve一个用户程序。和linux开机时在内核态execve一个/bin/bash是一样的。
 	return errorCode;
 }
 
@@ -178,6 +178,7 @@ void proc_init()
 
 }
 
+//内核线程强制设置好了一些东西，eip什么的都是强制指定的。而如果用户执行的fork()，只有do_fork，且do_fork的frame不是自己设置（指定）的，而是直接复制当前用户的进程frame的。因此，是“完全复制”啊。
 int kernel_thread(int (*fn)(void *), void *arg, u32 flags)
 {
 	struct idtframe frame;
@@ -223,6 +224,7 @@ int do_fork(u32 flags, u32 stack_offset, struct idtframe *frame)		//这个do_for
 
 	wakeup_process(pcb);
 
+	//代码段不需要复制。因为直接只读～
 	//由于trapframe中复制了所有的寄存器和指针(虽然没有复制代码段和数据段，但是指向了同一个位置)，因此后边的执行流程也是和parent一样的，因此被schedule之后，后边的判断也会两个都执行。所以就可以判断不同了。
 	//后边的代码父子都是一样的，不同的只是全局变量current～
 
@@ -231,11 +233,7 @@ int do_fork(u32 flags, u32 stack_offset, struct idtframe *frame)		//这个do_for
 	printf("current: pid=> %d\n", current->pid);		//这里看看有什么问题。
 	printf("pcb in do_fork: pid=> %d\n", pcb->pid);
 
-	if(current == pcb){
-		return 0;			//如果现在是子进程
-	}else{
-		return pcb->pid;	//返回子进程pid
-	}
+	return pcb->pid;	//返回子进程pid
 
 }
 
