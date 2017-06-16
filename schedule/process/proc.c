@@ -192,7 +192,7 @@ int kernel_thread(int (*fn)(void *), void *arg, u32 flags)
 }
 
 //实际上，do_fork只深拷贝了一份页表。其余的全是浅拷贝。
-int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实并不算fork。它的pcb全是通过额外传入的参数frame设置的。如果是fork，理当从current->frame设置吧。
+int do_fork(u32 flags, u32 stack_offset, struct idtframe *frame)		//这个do_fork其实并不算fork。它的pcb全是通过额外传入的参数frame设置的。如果是fork，理当从current->frame设置吧。
 {
 	if(proc_num > MAX_PROCESS)	return -1;
 
@@ -201,7 +201,7 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 	if(pcb == NULL)		return -1;
 
 	//填充pcb
-	if(set_kthread_stack(pcb) == -1){
+	if(set_kthread_stack(pcb, stack_offset) == -1){
 		free(pcb);
 		return -1;
 	};
@@ -215,7 +215,7 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 	list_insert_after(&proc_list, &pcb->node);		//插入node
 	proc_num ++;
 	copy_mm(pcb, flags, current->mm);
-	copy_thread(pcb, stack, frame);												//在这里，另一个进程的指针已经设置好了。就等着schedule轮到他了。
+	copy_thread(pcb, stack_offset, frame);												//在这里，另一个进程的指针已经设置好了。就等着schedule轮到他了。
 	//这里要考虑全面！！如果父进程已经fork过其他的子进程的话
 	pcb->optr = pcb->parent->cptr;		//设置自己的哥哥
 	pcb->parent->cptr = pcb;			//设置成为爹爹的大儿子（
@@ -405,13 +405,16 @@ int copy_mm(struct pcb_t *pcb, int is_share, struct mm_struct *copied_mm){		//�
 	return 0;
 }
 
-void copy_thread(struct pcb_t *pcb, u32 stack, struct idtframe *frame)
+void copy_thread(struct pcb_t *pcb, u32 offset, struct idtframe *frame)	//改成了offset。由于我糟糕的设计缘故，offset这个东西，只要不为0，那么就表示【用户态】stack(高地址栈顶)设置的时候，需要【向下】偏移的offset。因为如果是用户态，可能要execve，就要在最后4字节放上exit_proc....相反地，内核态并不需要execve来强行挪动eip指向一个code_page导致无法返回.....所以offset为0就好。
 {
 	pcb->frame = (struct idtframe *)(pcb->start_stack - sizeof(struct idtframe));		//frame->esp是“利用中断后方恢复”时必要的frame指针位置。通过frame里边设置的寄存器值，进行恢复。
 	//先把整个idtframe放到pcb->start_stack的最高地址处。然后设置。
 	*(pcb->frame) = *frame;
 	//设置frame->esp。虽然这个在内核态没啥大用。这个frame->esp会被用到“iret=>内核态切换到用户态 由iret恢复”。
-	pcb->frame->esp = stack;
+//	pcb->frame->esp = stack;
+	pcb->frame->esp = offset == 0 ? 0 : pcb->start_stack - offset;		//被逼无奈.....必须在offset的那个位置存放一发exit_proc。。。
+														//这个frame->esp实际上是内核态-->用户态所设置的转移地址，即系统调用的返回地址。本来用户态fork的进程，在ucore中fork()函数设置此frame->esp为父进程的堆栈。然而如果用户进程中进行了系统调用，那么int $0x80结束的时候，就会执行这个frame->esp，那么堆栈会强制蹦到父进程的堆栈。这样不好吧......或者是我的理解问题。
+														//所以我改成了“跳回自己的堆栈”。但是，由于回到用户态，可能会让栈页无法访问。所以根据flag，我把用户进程的栈设置成为了0x07了。
 	pcb->frame->eflags |= 0x200;		//开启中断！！否则，时钟中断竟然不好使！！
 
 	pcb->context.esp = (u32)pcb->frame;		//注意传入的是frame的位置。但是要提取出来frame->myeax的话，需要解下引用～毕竟是指针，访问需要frame->myeax.汇编的话，如果把它放到%esp中，访问myeax需要是0(%esp).==> *(esp + 0)
@@ -424,12 +427,22 @@ void kernel_thread_entry()
 	asm volatile("push %edx; call *%ebx; push %eax; call do_exit;");	//无限循环就好。因为根本没法返回，根本不知道返回哪里。然后调度的时候调走就好了。这个进程就没啦。
 }
 
-int set_kthread_stack(struct pcb_t *pcb)
+int set_kthread_stack(struct pcb_t *pcb, u32 offset)		//offset即使
 {
 	struct Page *pages = alloc_page(KTHREAD_STACK_PAGE);		//分配内核线程栈空间
 	if(pages == NULL)	return -1;
 
-	pcb->start_stack = pg_to_addr_la(pages) + KTHREAD_STACK_PAGE * PAGE_SIZE;
+	pcb->start_stack = pg_to_addr_la(pages) + KTHREAD_STACK_PAGE * PAGE_SIZE;	//下边还要-4...
+	if(offset){		//offset有值，说明是用户进程了。需要改一下页表，设为0x07。		//因为一共才分配两页，因此就硬编码了。
+		get_pte(pcb->mm->pde, pcb->start_stack - PAGE_SIZE, 0)->sign |= 0x4;		//设为用户。
+		get_pte(pcb->mm->pde, pcb->start_stack - PAGE_SIZE * 2, 0)->sign |= 0x4;	//设为用户。
+	}
+	pcb->start_stack -= 4;		//这里减4......
+	if(offset){
+		extern int exit_proc();
+		*(u32 *)(pcb->start_stack) = (u32)exit_proc;		//放置exit_proc函数......（		假设offset一般都是4了......
+	}
+
 	return 0;
 }
 

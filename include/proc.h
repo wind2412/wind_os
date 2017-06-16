@@ -103,7 +103,7 @@ void do_exit();
 
 void send_chld_to_init();
 
-int set_kthread_stack(struct pcb_t *pcb);
+int set_kthread_stack(struct pcb_t *pcb, u32 offset);
 
 int copy_mm(struct pcb_t *pcb, int is_share, struct mm_struct *copied_mm);
 

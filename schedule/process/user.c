@@ -19,7 +19,12 @@ int sys_fork(u32 arg[])
 {
 	struct idtframe *frame = current->frame;
 	printf("[user fork()]\n");
-	int pid = do_fork(0, frame->esp, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。
+	//do_fork的参数4的意思是stack栈顶要收缩4个单位存放exit_proc......而且创建的是用户进程。
+	printf("=====current->start_stack: %x\n", current->start_stack);
+	printf("=====frame->esp: %x\n", frame->esp);
+	printf("=====current->start_stack - frame->esp: %x\n", current->start_stack - frame->esp);
+	int pid = do_fork(0, /*frame->esp*/current->start_stack - frame->esp, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。		//唉，后来我可耻地改成了偏移量（
+								//这里，改成了current->start_stack和frame->esp的偏移量。也就是说，届时会把偏移量平移到此fork的新子进程中。这样，两个子进程的栈才是一模一样而且完全独立的。否则如果设置为frame->esp，新的子进程的stack会跳到旧的stack中去......
 	printf("[fork() over]\n");
 	return pid;
 }
@@ -39,6 +44,7 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	struct Page *user_stack_pg = alloc_page(KTHREAD_STACK_PAGE);	//用户栈也有2页吧
 	struct pte_t *pte = get_pte(current->backup_pde, pg_to_addr_la(user_stack_pg), 1);
 	struct pte_t *pte_2 = get_pte(current->backup_pde, pg_to_addr_la(user_stack_pg+1), 1);
+	printf("====stack_pg of execve: %x\n", pg_to_addr_la(user_stack_pg));
 	pte->page_addr = (pg_to_addr_pa(user_stack_pg) >> 12);
 	pte_2->page_addr = (pg_to_addr_pa(user_stack_pg+1) >> 12);
 	pte->sign = 0x07;
@@ -65,7 +71,7 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 //	current->mm->pde = (struct pde_t *)pg_to_addr_la(user_pde_pg);
 //	current->backup_pde = current->mm->pde;
 	extern struct mm_struct *mm;
-	copy_mm(current, 0, mm);
+	copy_mm(current, 0, mm);		//用正确的函数复制一下pde表。用自己写的，怕是在pte页上会出现unmap这样同样的毛病吧。
 
 	//创建代码页，把程序复制进来
 	struct Page *code_pg = alloc_page(1);
@@ -78,6 +84,7 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 	//但是为了防止execve的函数return时能够有正确的返回值，应该现在[用户栈]的最前边push一波do_exit的eip。//但是其实这样有个弊端，就是其实如果是在用户态下，cs:eip是无法访问栈的。因为虽然叫做“用户栈”，其实那个栈也只有内核态下的cs:eip和esp能访问。do_fork并没有带有那种更改用户态的接口。
 	asm volatile ("movl %1, %%eax; movl %0, (%%eax);"::"r"(/*do_exit*/exit_proc), "r"(/*current->start_stack - 4*/pg_to_addr_la(user_stack_pg) + PAGE_SIZE * KTHREAD_STACK_PAGE - 4):"eax");		//do_exit的参数咋办......功力不过关啊...  //把do_exit的地址挪到user_main前边，为了让user_main在ret之后恢复do_exit函数到eip中，并且执行。
 	memcpy((void *)(pg_to_addr_la(code_pg)), (void *)arg[0], PAGE_SIZE);		//arg[0]处指向的被执行函数，拷贝到这个页上来。   否则由于user_main在内核中，无法由用户态读取。
+	printf("====copy code to %x\n", pg_to_addr_la(code_pg));
 
 	frame->eip = pg_to_addr_la(code_pg);	//user_main
 
