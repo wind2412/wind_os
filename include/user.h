@@ -23,6 +23,8 @@ int sys_print(u32 arg[]);
 
 int exit_proc();
 
+int fork();
+
 int print(const char *fmt);
 
 void system_intr(struct idtframe *frame);

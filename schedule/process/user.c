@@ -20,9 +20,9 @@ int sys_fork(u32 arg[])
 	struct idtframe *frame = current->frame;
 	printf("[user fork()]\n");
 	//do_fork的参数4的意思是stack栈顶要收缩4个单位存放exit_proc......而且创建的是用户进程。
-	printf("=====current->start_stack: %x\n", current->start_stack);
-	printf("=====frame->esp: %x\n", frame->esp);
-	printf("=====current->start_stack - frame->esp: %x\n", current->start_stack - frame->esp);
+//	printf("=====current->start_stack: %x\n", current->start_stack);
+//	printf("=====frame->esp: %x\n", frame->esp);
+//	printf("=====current->start_stack - frame->esp: %x\n", current->start_stack - frame->esp);
 	int pid = do_fork(0, frame->esp/*current->start_stack - frame->esp*/, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。		//唉，后来我可耻地改成了偏移量（
 								//这里，改成了current->start_stack和frame->esp的偏移量。也就是说，届时会把偏移量平移到此fork的新子进程中。这样，两个子进程的栈才是一模一样而且完全独立的。否则如果设置为frame->esp，新的子进程的stack会跳到旧的stack中去......
 	printf("[fork() over]\n");
@@ -106,6 +106,13 @@ int sys_print(u32 arg[])
 	return 0;
 }
 
+int sys_getpid(u32 arg[])
+{
+	return current->pid;
+}
+
+
+
 int exit_proc()
 {
 	int ret;
@@ -113,11 +120,15 @@ int exit_proc()
 	return ret;
 }
 
-int fork()
+int getpid();
+
+__attribute__((always_inline)) inline int fork()		//用户态下嵌套中断不知道可不可以？
 {
 	int pid;
 	asm volatile ("int $0x80;":"=a"(pid):"a"(2));
-	return pid;
+//	if(pid == current->pid)		return 0;		//current由于加载不到页上，因此得不到。但是果然还是通过0x80系统调用更好吧。
+	if(pid == getpid())			return 0;
+	else 						return pid;
 }
 
 int waitpid(int pid)
@@ -125,6 +136,13 @@ int waitpid(int pid)
 	int ret;
 	asm volatile ("int $0x80;":"=a"(ret):"a"(3), "c"(pid));
 	return ret;
+}
+
+int getpid()
+{
+	int pid;
+	asm volatile ("int $0x80;":"=a"(pid):"a"(5));
+	return pid;
 }
 
 int print(const char *fmt)		//print()用户态，触发中断int $0x80变为内核态-->system_intr()内核态，使用-->sys_print().先是内核态. 然后从中断中返回，会恢复中断之前的现场，即回归用户态。
@@ -135,7 +153,10 @@ int print(const char *fmt)		//print()用户态，触发中断int $0x80变为内�
 }
 
 //需要被执行的user函数
-int user_main(){		//应该是2号进程
+int user_main(){		//应该是2号进程				//现在的函数都是【运行时地址才能确定】的。而仅仅加载这一函数到某一页，由于会默认计算偏移量，而fork函数在此页的前几个页。因此计算的结果会造成不会跳到“真正的fork函数”，而是跳到“复制到页的fork函数”。但是我们只复制了一个页，fork并没有复制到页上，因此必然出错。
+													//这里的原因在于：这里并不是elf，因此必然是“只有部分”的程序了。因此只能通过中断0x80的特殊方式，直接强行使用内核调用正确的位置，免去没有加载到页上的烦恼了。
+													//所以在这个并非elf而且仅仅是“一个函数”的程序，内部调用还是都inline函数吧，直接能够加载进去。否则会各种出错的啊。
+													//还有那个fork。一开始只返回pid的时候，能被-O2优化检测到函数太小，直接inline进user_main了。（实在是幸运，要不一开始就运行不了啦）但是在fork加上了条件分支之后，不再能变得default inline了。因此必须产生call函数调用，由于【页上的fork】不在页上user_main的相对偏移【指真·user_main和真·fork的相对偏移】(fork并没有加载到页上)，就必然出错啦。
 	print("user_main....\n");
 
 	int pid;
@@ -157,6 +178,7 @@ int (*system_call[])(u32 arg[]) = {
 		[2] 	sys_fork,
 		[3]		sys_wait,
 		[4]		sys_execve,
+		[5]		sys_getpid,			//此函数实际上是为了解决：因为我的用户进程不是elf文件，而只是一个函数。这样，fork()需要引用内核的current，但是由于我只引入了user_main所在的那一页，current捕捉不到。因此产生了再写一个中断的想法LOL;
 		[30]	sys_print,
 };
 
