@@ -23,7 +23,7 @@ int sys_fork(u32 arg[])
 	printf("=====current->start_stack: %x\n", current->start_stack);
 	printf("=====frame->esp: %x\n", frame->esp);
 	printf("=====current->start_stack - frame->esp: %x\n", current->start_stack - frame->esp);
-	int pid = do_fork(0, /*frame->esp*/current->start_stack - frame->esp, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。		//唉，后来我可耻地改成了偏移量（
+	int pid = do_fork(0, frame->esp/*current->start_stack - frame->esp*/, frame);		//因为do_fork的frame->esp是单独设置的。要设置得和current一样就好。		//唉，后来我可耻地改成了偏移量（
 								//这里，改成了current->start_stack和frame->esp的偏移量。也就是说，届时会把偏移量平移到此fork的新子进程中。这样，两个子进程的栈才是一模一样而且完全独立的。否则如果设置为frame->esp，新的子进程的stack会跳到旧的stack中去......
 	printf("[fork() over]\n");
 	return pid;
