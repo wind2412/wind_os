@@ -116,12 +116,12 @@ int do_waitpid(int pid)
 	int has_child = 0;
 	struct list_node *begin = proc_list.next;
 	if(pid == 0){		//如果是0，就随便选择current的子进程中的一个zombie
-		while(1){
+//		while(1){
 			while(begin != &proc_list){
 				struct pcb_t *chd = GET_OUTER_STRUCT_PTR(begin, struct pcb_t, node);
 				if(chd->parent == current){
 					has_child = 1;
-					if(chd->state == TASK_ZOMBIE)	return recycle_child(chd);
+	inner_loop:		if(chd->state == TASK_ZOMBIE)	return recycle_child(chd);
 				}
 				begin = begin->next;
 			}
@@ -130,7 +130,8 @@ int do_waitpid(int pid)
 				return -1;		//出错。current根本没有子进程。
 			}
 			else				schedule();		//如果有child，而且全不是zombie，那么就schedule好了。等到什么时候schedule回来，就会继续执行这里了。
-		}
+			goto inner_loop;		//能够走到这里，必然是因为begin == &proc_list，也就是返回了头而退出了while循环。因此，只要goto那里就可以了。从头开始。
+//		}
 	}else{
 		while(begin != &proc_list){
 			struct pcb_t *chd = GET_OUTER_STRUCT_PTR(begin, struct pcb_t, node);

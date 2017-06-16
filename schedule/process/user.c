@@ -175,7 +175,16 @@ int user_main(){		//应该是2号进程				//现在的函数都是【运行时�
 	int pid;
 	if((pid = fork()) != 0){		//产生3号进程
 		print("this is the father process.\n");
-		waitpid(3);
+		int new_pid;
+		if((new_pid = fork()) != 0){
+			print("this is new father process~\n");
+//			waitpid(new_pid);
+			waitpid(0);
+		}else{
+			print("this is new child process~\n");
+			return 0;
+		}
+		waitpid(0);
 	}else{
 		print("this is the child process.\n");
 	}
