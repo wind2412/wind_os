@@ -56,14 +56,16 @@ int sys_execve(u32 arg[])		//假设我们的execve函数只执行一个函数。
 //	frame->esp = current->start_stack;		//必须设置！！！因为将要从内核态切回用户态！！！所以这个frame->esp实际上是会通过iret指令来切换的！如果不设置，就错了！！
 
 	//由于sys_exec是从内核空间出来的，因而必然pcb->mm为NULL。因此要设置个页目录表。变成用户的页目录表。
-	current->mm = create_mm(NULL);
-	struct Page *user_pde_pg = alloc_page(1);
-	struct pte_t *pde_pte = get_pte(current->backup_pde, pg_to_addr_la(user_pde_pg), 1);
-	pde_pte->page_addr = (pg_to_addr_pa(user_pde_pg) >> 12);		//必须注册！！
-	pde_pte->sign = 0x07;
-	memcpy((void *)pg_to_addr_la(user_pde_pg), current->backup_pde, PAGE_SIZE);	//复制内核的页表到用户的页表
-	current->mm->pde = (struct pde_t *)pg_to_addr_la(user_pde_pg);
-	current->backup_pde = current->mm->pde;
+//	current->mm = create_mm(NULL);
+//	struct Page *user_pde_pg = alloc_page(1);
+//	struct pte_t *pde_pte = get_pte(current->backup_pde, pg_to_addr_la(user_pde_pg), 1);
+//	pde_pte->page_addr = (pg_to_addr_pa(user_pde_pg) >> 12);		//必须注册！！
+//	pde_pte->sign = 0x07;
+//	memcpy((void *)pg_to_addr_la(user_pde_pg), current->backup_pde, PAGE_SIZE);	//复制内核的页表到用户的页表
+//	current->mm->pde = (struct pde_t *)pg_to_addr_la(user_pde_pg);
+//	current->backup_pde = current->mm->pde;
+	extern struct mm_struct *mm;
+	copy_mm(current, 0, mm);
 
 	//创建代码页，把程序复制进来
 	struct Page *code_pg = alloc_page(1);

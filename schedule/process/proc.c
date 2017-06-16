@@ -214,8 +214,8 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 	pcb->parent = current;
 	list_insert_after(&proc_list, &pcb->node);		//插入node
 	proc_num ++;
-	copy_mm(pcb, flags);
-	copy_thread(pcb, stack, frame);
+	copy_mm(pcb, flags, current->mm);
+	copy_thread(pcb, stack, frame);												//在这里，另一个进程的指针已经设置好了。就等着schedule轮到他了。
 	//这里要考虑全面！！如果父进程已经fork过其他的子进程的话
 	pcb->optr = pcb->parent->cptr;		//设置自己的哥哥
 	pcb->parent->cptr = pcb;			//设置成为爹爹的大儿子（
@@ -229,6 +229,7 @@ int do_fork(u32 flags, u32 stack, struct idtframe *frame)		//这个do_fork其实
 	//其实fork并不是“有两个返回值”，而是因为有两个进程，从而其实是有“两个fork”。C语言有且仅有一个返回值。
 
 	printf("current: pid=> %d\n", current->pid);		//这里看看有什么问题。
+	printf("pcb in do_fork: pid=> %d\n", pcb->pid);
 
 	if(current == pcb){
 		return 0;			//如果现在是子进程
@@ -336,8 +337,8 @@ void delete_mm(struct mm_struct *mm)
 	}
 }
 
-int copy_mm(struct pcb_t *pcb, int is_share){		//用户进程。fork的调用函数		//bug..
-	struct mm_struct *old_mm = current->mm;
+int copy_mm(struct pcb_t *pcb, int is_share, struct mm_struct *copied_mm){		//用户进程。fork的调用函数		//bug..
+	struct mm_struct *old_mm = copied_mm;
 	if(old_mm == NULL)	return 0;
 	if(is_share){		//指针指向同样mm即可
 		pcb->mm = old_mm;

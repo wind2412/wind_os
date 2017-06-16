@@ -105,7 +105,7 @@ void send_chld_to_init();
 
 int set_kthread_stack(struct pcb_t *pcb);
 
-int copy_mm();
+int copy_mm(struct pcb_t *pcb, int is_share, struct mm_struct *copied_mm);
 
 void delete_mm(struct mm_struct *mm);
 
