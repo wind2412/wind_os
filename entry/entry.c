@@ -20,6 +20,7 @@
 #include <malloc.h>
 #include <proc.h>
 #include <sched.h>
+#include <productor_consumer.h>
 
 //见ucore指导书：0～640KB是一开始空闲的，0~4kb全都当做页目录表，5~8,9~12,13~16,17~20kb当做页表（临时）（Linux0.11实现）
 __attribute__((section(".init.data"))) struct pde_t *pd  = (struct pde_t *)0x0000;
@@ -104,7 +105,8 @@ void init()
 	test_swap();
 
 	proc_init();
-//	schedule();
+
+	test_semaphore();
 
 	while(1);
 }

@@ -69,7 +69,7 @@ struct pcb_t *create_pcb()
 	pcb->parent = NULL;
 	pcb->waitstate = NOT_WT;
 	pcb->yptr = pcb->cptr = pcb->optr = NULL;
-	//node没有初始化
+	//node没有初始化		//也不需要初始化～
 	return pcb;
 }
 

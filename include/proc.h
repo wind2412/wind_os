@@ -55,6 +55,7 @@ struct pcb_t{
 	enum proc_waitstate waitstate;
 	struct pcb_t *cptr, *yptr, *optr;
 	struct list_node node;
+	struct list_node semaphore_test_node;	//设计这个是因为pcb_t中的node是不能使用的，因为原先已经有用了......因此必须设计一个别的数据结构保存node，用来semaphore的索引。
 };
 
 /****************中断的处理(atomic)*************/
