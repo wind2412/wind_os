@@ -6,6 +6,7 @@
  */
 
 #include <tss.h>
+#include <string.h>
 
 /**
  * ltr有些不同于lgdt和lidt。它的可见位只有16位，这16位加载“某一tss在gdt的偏移量”
@@ -15,7 +16,7 @@ void ltr(u16 offset_in_gdt){
 }
 
 //设置tss的ss0内核栈
-u8 kern_stack[1024];
+u8 kern_stack[2 * PAGE_SIZE];
 
 void tss_init()
 {
@@ -24,7 +25,8 @@ void tss_init()
 //	tss0.ss0  = 0x08;		//这是错的！！！如果设置这个，在switch_to_user_mode之后随便一个int，因为要走tss，看到这个ss段是代码段，都会出错！qemu会不断卡seaBIOS！！！但是为什么啊。。。。。
 							//呵呵。。。我是傻吗。。。栈地址自然要在数据段......代码段肯定是错的啊......保护程度都不一样，描述符表的粒度信息都不同....虽然起始地址和段长度都是一样的......
 	tss0.ss0  = 0x10;		//设置内核栈段选择子为数据段！！！
-	tss0.esp0 = (u32)kern_stack + sizeof(kern_stack);	//tss0.esp0指向内核栈底部，而后即使切换，也一直不会变了。
+	tss0.esp0 = (u32)kern_stack + sizeof(kern_stack) /*- 1*/;	//tss0.esp0指向内核栈底部，而后即使切换，也一直不会变了。
+			//P.S.  [这里esp0是超出了内核栈界限的。但是也无所谓。因为push操作是esp先--，然后再向内赋值。所以会回到内核栈中。]
 
 	//在GDT表的第六项设置我们的第一个tss段：TSS Descriptor		//注意：因为GDT一开始就设置了6项，所以不用在这里lgdt。
 	set_seg_gate_desc(5, (u32)&tss0, sizeof(tss0), 0x89, 0x04);		//TSS的DPL也设置成0x00的ring0！如果设置成user会怎样？？？？？？？？就会啥情况下都可以切换了吗/？？？？？
@@ -33,11 +35,15 @@ void tss_init()
 
 	//在IDT的第121项设置(任务门描述符)切换到用内核。120项的切换到内核并不用修改。因为DPL是0x00，和其他中断没有区别.
 	extern u32 _intrs[];
-	set_intr_gate_desc(121, /*(u32)&_intrs[i]*/ _intrs[121], 0x08, IGD, 0x03, 1);		//与IDT项的不同之处只在于DPL：0x00->0x03  而IDT No.120并不用修改。
+	set_intr_gate_desc(121, /*(u32)&_intrs[i]*/ _intrs[121], 0x08, IGD, 0x03, 1);		//与IDT项的不同之处只在于DPL：ring0变成了ring3，0x00->0x03  而IDT No.120并不用修改。
 
 	//设置IDT第120项和第121项的handler！也就是switch_to_user_handler和switch_to_kern_handler.
 	handlers[120] = switch_to_user_handler;
 	handlers[121] = switch_to_kern_handler;
+
+	extern void system_intr(struct idtframe *frame);
+	set_intr_gate_desc(0x80, /*(u32)&_intrs[i]*/ _intrs[0x80], 0x08, IGD, 0x03, 1);		//int 0x80是给用户开放的。
+	handlers[0x80] = system_intr;
 }
 
 //这里非常难理解啊。详见https://wenku.baidu.com/view/a7edfdc233687e21ae45a922.html?re=view吧。这个写的简直不能再棒o(*////▽////*)q

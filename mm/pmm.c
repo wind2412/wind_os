@@ -11,7 +11,7 @@ struct e820map *memmap = (struct e820map *) ( 0x8000 + VERTUAL_MEM );
 
 struct free_area free_pages;
 
-struct Page *alloc_page(int n)
+struct Page *alloc_page(int n)		//其实只是在操作若干Page结构体而已。
 {
 	if(n > free_pages.free_page_num)	return NULL;
 	struct list_node *ptr = &free_pages.head;
@@ -30,18 +30,22 @@ struct Page *alloc_page(int n)
 			GET_OUTER_STRUCT_PTR(del, struct Page, node)->flags = 1;	//设为已用
 			free_pages.free_page_num -= n;
 
-			//每alloc一个page，需要换出去一个page以求均衡
+			//每alloc一个page，需要换出去一个page以求均衡		//分得太多就不考虑了？
 			extern int is_vmm_inited;
-			if(is_vmm_inited == 1){
+			if(is_vmm_inited == 1 && n == 1){
 				extern struct mm_struct *mm;
 				extern void swap_out(struct mm_struct *mm, int n);
 				swap_out(mm, 1);
 			}
 
-			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回va更好。
+			printf("alloc %d page: %x\n", n, pg_to_addr_la((struct Page *)((u32)page + VERTUAL_MEM)));
+
+			return (struct Page *)((u32)page + VERTUAL_MEM);		//想了想，还是返回la更好。
 		}
 		ptr = ptr->next;
 	}
+
+
 	return NULL;
 }
 
@@ -104,7 +108,7 @@ void pmm_init()
 //struct pte_t new_page_freemem_table[MAX_PAGE_NUM] __attribute__((aligned(PAGE_SIZE)));	//128*1024 也就是说，一共128个页表。
 
 struct Page *pages;		//pages的起始位置
-u32 pt_begin;			//空闲空间的起始位置
+u32 pt_begin;			//空闲空间的起始位置  但是最后实际上，是页表起始的位置。
 
 //struct pde_t new_pd[1024];		//new_pd失败了......TAT
 
@@ -173,19 +177,25 @@ void page_init()
 //通过一个page结构体指针算出此页的la
 u32 pg_to_addr_la(struct Page *page)
 {
-	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
+	return ((page - pages)) * PAGE_SIZE + pt_begin + VERTUAL_MEM;
 }
 
 //通过一个page结构体指针算出此页的pa
 u32 pg_to_addr_pa(struct Page *page)
 {
-	return (sizeof(struct Page) * (page - pages)) * PAGE_SIZE + pt_begin;
+	return ((page - pages)) * PAGE_SIZE + pt_begin;
 }
 
-//通过la算出此页的Page *结构体
-struct Page *addr_to_pg(u32 addr)
+//通过page的la算出此页的Page *结构体
+struct Page *la_addr_to_pg(u32 addr)
 {
-	return (struct Page *)(((addr - VERTUAL_MEM - pt_begin) / PAGE_SIZE) / sizeof(struct Page) + pages);
+	return (struct Page *)(((addr - VERTUAL_MEM - pt_begin) / PAGE_SIZE) + pages);
+}
+
+//通过page的pa算出此页的Page *结构体
+struct Page *pa_addr_to_pg(u32 addr)
+{
+	return (struct Page *)(((addr - pt_begin) / PAGE_SIZE) + pages);
 }
 
 //得到pte指针。如果pde中没有设置的话，就设置pde。
@@ -200,9 +210,10 @@ struct pte_t *get_pte(struct pde_t *pde, u32 la, int is_create)
 		memset((void *)pg_to_addr_la(pg), 0, PAGE_SIZE);		//清空整页。
 		pde[la >> 22].os = 0;
 		pde[la >> 22].sign = 0x7;
-		pde[la >> 22].pt_addr = (u32)pg >> 22;		//页目录表中添上刚刚申请的那个页！
+		//下边这里到底是pg_to_addr_pa还是la？？？  必须是pa！！！！必须是pa！！！！必须是pa！！！！否则会各种页表设置不上！！！！
+		pde[la >> 22].pt_addr = (pg_to_addr_pa(pg) >> 12);		//页目录表中添上刚刚申请的那个页！		//注意！！pde的索引是la >>[22]，而内部存放的值是pte的地址，只>>[12]即可！！
 	}
-	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];
+	return &((struct pte_t *)((pde[la >> 22].pt_addr << 12) + VERTUAL_MEM))[(la >> 12) & 0x3ff];		//卧槽这里<<和+没加上括号，还没看warning.....调了一下午
 }
 
 //通过pte得到页的地址la
@@ -217,18 +228,18 @@ u32 get_pg_addr_pa(struct pte_t * pte)
 	return (pte->page_addr) << 12;
 }
 
-void map(struct pde_t* pde, u32 la, u32 pa, u8 is_user)
+void map(struct pde_t* pde, u32 la, u32 pa, u8 bitsign)
 {
 	struct pte_t *pte = get_pte(pde, la, 1);
-	struct Page *new_pg = addr_to_pg(la);
+	struct Page *new_pg = pa_addr_to_pg(pa);
 	new_pg->ref += 1;
 	if((pte->sign & 0x1) == 1){		//要映射的pte已经被占用了 就要替换
-		struct Page *pg = addr_to_pg(get_pg_addr_la(pte));
+		struct Page *pg = la_addr_to_pg(get_pg_addr_la(pte));
 		if(pg == new_pg)	pg->ref -= 1;
 		else 				unmap(pde, get_pg_addr_la(pte));
 	}
-	pte->sign = is_user == 1 ? 0x7 : 0x3;
-	pte->page_addr = pa;
+	pte->sign = bitsign;
+	pte->page_addr = (pa >> 12);
 	asm volatile ("invlpg (%0)" ::"r"(la));
 }
 
@@ -236,7 +247,7 @@ void unmap(struct pde_t *pde, u32 la)
 {
 	struct pte_t *pte = get_pte(pde, la, 0);
 	if((pte->sign & 0x1) == 1){
-		struct Page *pg = addr_to_pg(get_pg_addr_la(pte));
+		struct Page *pg = la_addr_to_pg(get_pg_addr_la(pte));
 		pg->ref -= 1;
 		if(pg->ref == 0){
 			free_page(pg, 1);

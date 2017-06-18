@@ -30,12 +30,13 @@ struct mm_struct *create_mm(struct pde_t *pde)
 	return mm;
 }
 
-struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end)
+struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end, u32 flags)
 {
 	struct vma_struct *vma = (struct vma_struct *)malloc(sizeof(struct vma_struct));
 	vma->vmm_start = vmm_start;
 	vma->vmm_end = vmm_end;
 	vma->back_link = mm;
+	vma->flags = flags;
 
 	//insert
 	struct list_node *begin = &mm->node;
@@ -57,14 +58,15 @@ struct vma_struct *create_vma(struct mm_struct *mm, u32 vmm_start, u32 vmm_end)
 
 struct vma_struct *find_vma(struct mm_struct *mm, u32 addr)
 {
-	if(mm->cache->vmm_start < addr && mm->cache->vmm_end > addr)	return mm->cache;		//从cache中试着读取一波（局部性原理）
+	if(mm->cache != NULL && mm->cache->vmm_start < addr && mm->cache->vmm_end > addr)	return mm->cache;		//从cache中试着读取一波（局部性原理）
 	struct list_node *begin = &mm->node;
 	while(begin->next != &mm->node){
 		struct vma_struct *temp = GET_OUTER_STRUCT_PTR(begin->next, struct vma_struct, node);
-		if(temp->vmm_start < addr && temp->vmm_end > addr){
+		if(temp->vmm_start <= addr && temp->vmm_end > addr){
 			mm->cache = temp;
 			return temp;
 		}
+		begin = begin->next;
 	}
 	return NULL;
 }
@@ -95,30 +97,32 @@ void page_fault(struct idtframe *frame)
     u32 cr2;
     asm volatile ("mov %%cr2, %0" : "=r" (cr2));
 
-    printf("Page fault at EIP %x, virtual faulting address %x\n", frame->eip, cr2);
-    printf("Error code: %x\n", frame->errorCode);
-
+    printf("page_fault triggered==> at cr2: %x.\n", cr2);
+//    printf("Page fault at EIP %x, virtual faulting address %x\n", frame->eip, cr2);
+//    printf("Error code: %x\n", frame->errorCode);
+//
     // bit 0 为 0 指页面不存在内存里
-    if (frame->errorCode & 0x4) {
-        printf("In user mode.\n");
-    } else {
-        printf("In kernel mode.\n");
-    }
-    // bit 1 为 0 表示读错误，为 1 为写错误
-    if (frame->errorCode & 0x2) {
-        printf("Write error.\n");
-    } else {
-        printf("Read error.\n");
-    }
+//    if (frame->errorCode & 0x4) {
+//        printf("In user mode.\n");
+//    } else {
+//        printf("In kernel mode.\n");
+//    }
+//    // bit 1 为 0 表示读错误，为 1 为写错误
+//    if (frame->errorCode & 0x2) {
+//        printf("Write error.\n");
+//    } else {
+//        printf("Read error.\n");
+//    }
+
 
     switch (frame->errorCode & 0x3) {
     	case 0:
     		//read一个not present的页面，  这样应该从磁盘拿来新的页面
-    		do_swap(cr2);
+    		do_swap(cr2, 0);
     		break;
     	case 1:
     		//read一个present的页面 竟然还能出错？
-    		if((frame->errorCode & 0x4) == 1){
+    		if((frame->errorCode & 0x4) == /*1*/0x4){	////个大j8等于1！mdzz。。。
     			//此处查阅资料，我在这里添加了U/S保护的确认。
     			//如果errorCode & 0x1 == 1 则是：由于保护特权级别太高，造成无法读取，进而把bit1归0显示读错误。
     			//stackover flow: https://stackoverflow.com/questions/9759439/page-fault-shortage-of-page-or-access-violation
@@ -131,10 +135,11 @@ void page_fault(struct idtframe *frame)
     		break;
     	case 2:
     		//write一个not present的页面， 这样应该从磁盘拿来新的页面
-    		do_swap(cr2);
+    		do_swap(cr2, 1);
     		break;
     	case 3:
     		//write一个present的页面，页保护异常。这样应该COW。 由于最后两位00000011b，因此正在写，而且页面存在。但是又出了异常，因而原先的pte必然是只读的。可以推理出来。
+    		//这里并不对。。。其实仔细想想，这里应该是“用户”方面的事情。用户进程读取一个地址（页表对应后三位0x111，即用户、读写、存在位全为1），但是对应的页表项正好映射到内核，因此内核禁止它访问。所以并不是COW，而是继续应该调用do_swap().
     		printf("COW is not supported...\n");
     		while(1);
     		//具体实现先行搁置吧。？？？？？？？？？？？？？？？？？？？？？？？？？？？
@@ -156,27 +161,36 @@ void page_fault(struct idtframe *frame)
         printf("The fault occurred during an instruction fetch.\n");
     }
 
-    printf("esp: %x\n", frame->esp);
+//    printf("esp: %x\n", frame->esp);
 
 }
 
 //只有在缺页时创建的新page才会被swap out。即便是根本没在磁盘上，而是[根本没有]的页面。
-void do_swap(u32 cr2)		//从磁盘换进来 fault_pg对应的pte上写的扇区号 对应的磁盘上4096B
+void do_swap(u32 cr2, int is_write)		//从磁盘换进来 fault_pg对应的pte上写的扇区号 对应的磁盘上4096B
 {
 	u32 fault_pg_addr = ROUNDDOWN(cr2);
+
+	//检查vma属性合法？ vma相当于一个gate。（门描述符）
+    struct vma_struct *vma = find_vma(mm, fault_pg_addr);
+    if(vma == NULL)												panic("didn't find vma... wrong.\n");
+    else if(is_write && (vma->flags & 0x2) == 0)				panic("vma struct's flag said cannot write! wrong.\n");
+    else if(!is_write && (vma->flags & (0x1 | 0x4)) == 0)		panic("vma struct's flag said cannot read or exec! wrong.\n");
+
+    u32 sign = (vma->flags & 0x2) == 1 ? 0x7 : 0x5;		//因为swap一定是用户态，内核是不允许swap的。所以user位必然置1.
 
 	struct pte_t *pte = get_pte(mm->pde, fault_pg_addr, 1);	//1.如果页目录表有的话，那么返回。
 															//2.如果页目录表还没有的话，说明正在指定访问一个比较偏的内存位置。需要新建立一个pde目录表项，通过申请一个pte页。
 	if(pte->page_addr == 0 && pte->sign == 0){		//1,2->如果页表没有绑定页page的话，那就只能另申请一个page页并绑定到pte了。而且因为pte毛都没有，所以根本就不在磁盘上。
 		struct Page *pg = alloc_page(1);
+		printf("no page linked. so alloc a page, la: %x\n", pg_to_addr_la(pg));
 		if(pg == NULL)	return;	//panic更好
 		pg->va = fault_pg_addr;		//这个va会在swap_out中使用.
-		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), 1);
+		map(mm->pde, fault_pg_addr, pg_to_addr_pa(pg), sign);
 		//把新alloc的page加到vm_fifo列表中
 		list_insert_before(&mm->vm_fifo, &pg->node);
 	}else{											//3.如果已经绑定页面的话，那么说明在磁盘中了。换进来。
-		extern void swap_in(struct mm_struct *mm, u32 fault_addr);
-		swap_in(mm, fault_pg_addr);
+		extern void swap_in(struct mm_struct *mm, u32 fault_addr, u32 sign);
+		swap_in(mm, fault_pg_addr, sign);
 	}
 
 }

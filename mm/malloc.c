@@ -9,67 +9,66 @@
 
 struct list_node chunk_head;
 
-u32 heap_max;		//malloc内存开始的地方
-
 void malloc_init()
 {
-	extern u32 pt_begin;		//全局情况下，全局的extern变量不能赋给另一个全局变量。error：(extern variable) pt_begin is not constant.
-	heap_max = pt_begin;
-	chunk_head.next = &((struct Chunk *)heap_max)->node;
-	chunk_head.prev = &((struct Chunk *)heap_max)->node;
-	//设置第一块malloc(其实没有malloc，只是为了编程方便)
-	struct Page *first_page = alloc_page(1);	//先分出来一页。
-	//设置这一页。
-	((struct Chunk *)heap_max)->allocated = 0;
-	((struct Chunk *)heap_max)->size = PAGE_SIZE;
-	((struct Chunk *)heap_max)->node.next = &chunk_head;
-	((struct Chunk *)heap_max)->node.prev = &chunk_head;
-	heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
+	list_init(&chunk_head);
 }
 
-//first fit算法 hx_kern
-//注意：完全“顺序”malloc。因此，才能实现“合并free块”
+//不连续的malloc。
 void *malloc(u32 size)
 {
 	u32 total_alloc_size = sizeof(struct Chunk) + size;
-	struct list_node *node = &chunk_head;	//最终发现按照Page的malloc实在是不现实的策略。遂改用hx的按照Chunk的malloc策略，先分配Chunk，再申请Page。有种先斩后奏的感觉。
-	while(node->next != node){
+	struct list_node *node = &chunk_head;
+	while(node->next != &chunk_head){
 		struct Chunk *chunk = GET_OUTER_STRUCT_PTR(node->next, struct Chunk, node);
 		if(chunk->allocated == 0 && chunk->size >= total_alloc_size){		//split
-			//对"下一个chunk"进行设置
+			//对"下一个chunk"进行设置	但是这个chunk被使用的情况只有: size够大 + 目前的node是chunk_head之前的最后一个，而且不符合要求，即(chunk->allocated==1)或者(==0但是size不够大)。
 			struct Chunk *next = (struct Chunk *)((u32)chunk + total_alloc_size);
 			next->allocated = 0;
 			next->size = chunk->size - total_alloc_size;		//要减去分割开的上一部分还有这个next的大小
-			list_insert_after(&chunk->node, &next->node);
+			list_insert_after(&chunk->node, &next->node);		//不要插入！否则如果malloc之后free了，这个空闲内存还会被重设一次，然后重新插入一次.....
+																//不存在这样的问题。因为本来的被分裂块会直接进行修改，新增只是增加分裂剩下的remain块。
 
 			//对"此chunk"进行设置
 			chunk->allocated = 1;
 			chunk->size = total_alloc_size - sizeof(struct Chunk);
 
 			return (void *)((u32)chunk + sizeof(struct Chunk));
+//		}else if(chunk->node.next == &chunk_head){	//是最后一个的话，就查看“剩下的”能不能符合要求。
+//			struct Chunk *little_remain = (struct Chunk *)((u32)chunk + sizeof(struct Chunk) + chunk->size);
+//			if((u32)little_remain + sizeof(struct Chunk) + size < ROUNDUP((u32)little_remain)){	//够大
+//				little_remain->size = size;
+//				little_remain->allocated = 1;
+//				list_insert_before(&chunk_head, &little_remain->node);
+//				return (void *)((u32)little_remain + sizeof(struct Chunk));
+//			}else{
+//				goto fail;
+//			}
 		}else{	//继续遍历还有哪个页能容纳下所需要的size
-			if(chunk->node.next == &chunk_head)	break;	//这一句是防止如果现在是最后一个块，下一个是chunk_head，但是自身却少于size大小，如果是这样的话，else里会->next变成node自身，就会无限循环。。。恶心的设计。
+/*fail:*/	if(chunk->node.next == &chunk_head)	break;	//这一句是防止如果现在是最后一个块，下一个是chunk_head，但是自身却少于size大小，如果是这样的话，else里会->next变成node自身，就会无限循环。。。恶心的设计。
 			node = node->next;
 			continue;
 		}
 	}
 
-	//如果程序没有返回，而是走到这里，那就说明必须要从heap_max指向的位置开始分配页面了。
-	struct Chunk *prev;
-	if(GET_OUTER_STRUCT_PTR(chunk_head.prev, struct Chunk, node)->allocated == 1){
-		prev = GET_OUTER_STRUCT_PTR(chunk_head.prev, struct Chunk, node);
-	}else{
-		prev = GET_OUTER_STRUCT_PTR(chunk_head.prev->prev, struct Chunk, node);
+	//如果走到这里，那么就必须要申请新的页了。这样，势必要插入到list的最后一项。
+	int need_page_num = total_alloc_size / PAGE_SIZE;
+	if(total_alloc_size % PAGE_SIZE > 0)	need_page_num += 1;	//如果有余，加一页。
+	struct Page *pages = alloc_page(need_page_num);
+	struct Chunk *new_chunk = (struct Chunk *)pg_to_addr_la(pages);
+	new_chunk->allocated = 1;
+	new_chunk->size = size;
+	list_insert_before(&chunk_head, &new_chunk->node);	//插入到队尾。
+
+	u32 remain_mem = need_page_num * PAGE_SIZE - total_alloc_size;		//看看能不能split
+	if(remain_mem > sizeof(struct Chunk)){		//如果还有一个Chunk的空：
+		struct Chunk *remain_chunk = (struct Chunk *)((u32)new_chunk + total_alloc_size);
+		remain_chunk->allocated = 0;
+		remain_chunk->size = remain_mem - sizeof(struct Chunk);
+		list_insert_before(&chunk_head, &remain_chunk->node);	//理由同上......
 	}
-	while(heap_max < (u32)prev + sizeof(struct Chunk) + prev->size + total_alloc_size){	//不断分配页面，如果size太大的话
-		struct Page *page = alloc_page(1);
-		heap_max += PAGE_SIZE;		//更新下次如果前边malloc的没有free的话，想要再malloc的新chunk位置
-	}
-	struct Chunk *cur = (struct Chunk *)((u32)prev + sizeof(struct Chunk) + prev->size);
-	list_insert_before(&chunk_head, &cur->node);
-	cur->allocated = 1;
-	cur->size = size;
-	return (void *)((u32)cur + sizeof(struct Chunk));
+
+	return (void *)((u32)new_chunk + sizeof(struct Chunk));
 }
 
 void free(void *addr)
@@ -82,37 +81,24 @@ void free(void *addr)
 	struct Chunk *prev = chunk->node.prev == &chunk_head ? NULL : GET_OUTER_STRUCT_PTR(chunk->node.prev, struct Chunk, node);
 	struct Chunk *next = chunk->node.next == &chunk_head ? NULL : GET_OUTER_STRUCT_PTR(chunk->node.next, struct Chunk, node);
 
-	if(prev != NULL && prev->allocated == 0){
+	if(prev != NULL && prev->allocated == 0 && (u32)prev + sizeof(struct Chunk) + prev->size == (u32)chunk){		//必须要保证是连续的内存！！
 		list_delete(&chunk->node);
-		prev->size += this_size;
+		prev->size += (this_size + sizeof(struct Chunk));
 		chunk = prev;		//把chunk设为prev。 也就是，在和next合并之前，chunk更新为next前边的块指针。(因为，chunk本身可能被prev合并。)
 	}
 
-	if(next != NULL && next->allocated == 0){
+	if(next != NULL && next->allocated == 0 && (u32)chunk + sizeof(struct Chunk) + chunk->size == (u32)next){		//理由同上
 		list_delete(&next->node);
-		chunk->size += next->size;
+		chunk->size += (next->size + sizeof(struct Chunk));
 	}
 
-	if(chunk->node.next == &chunk_head){	//后边没有了，就真·free了。		//from hx_kern
-		chunk->size = 0;		//设为0，防止麻烦，UB问题。万一被malloc的循环读到就不好了。
-		while((heap_max - PAGE_SIZE) >= (u32)chunk){
-			heap_max -= PAGE_SIZE;
-			free_page(addr_to_pg(heap_max), 1);		//释放一页
-		}
-		list_delete(&chunk->node);
-		if(chunk_head.next == &chunk_head){
-			malloc_init();		//重新开始。	//会出问题。。。竟然意外跳了EIP？
-//			alloc_page(1);
-//			chunk_head.prev = chunk_head.next = &((struct Chunk *)heap_max)->node;
-//			//设置这一页。
-//			((struct Chunk *)heap_max)->allocated = 0;
-//			((struct Chunk *)heap_max)->size = PAGE_SIZE;
-//			((struct Chunk *)heap_max)->node.next = &chunk_head;
-//			((struct Chunk *)heap_max)->node.prev = &chunk_head;
-//			heap_max += PAGE_SIZE;	//需要加上。毕竟已经分了一页了。
-		}
-	}
+	//free_page的操作并没有写。等到以后有时间再写吧。
 
+	//由于vmm啥的init全是malloc初始化的。因此原来的[如果全free的话，就把所有page全都free了]的策略是错误的。因为根本就不可能全free了。
+//	if((u32)chunk == ROUNDDOWN((u32)chunk) && (sizeof(struct Chunk) + chunk->size) % PAGE_SIZE == 0){	//现在的chunk占据了一个整页，删了它吧
+//		list_delete(&chunk->node);
+//		free_page(la_addr_to_pg((u32)chunk),  (sizeof(struct Chunk) + chunk->size) / PAGE_SIZE);
+//	}
 }
 
 
@@ -145,6 +131,13 @@ void test_malloc()
 	free(addr4);
 	free(addr5);
 
+	printf("after free:\n");
+
+	printf("malloc addr is: %x\n", addr1 = malloc(1000));
+	printf("malloc addr is: %x\n", addr2 = malloc(1000));
+	printf("malloc addr is: %x\n", addr3 = malloc(5000));
+	printf("malloc addr is: %x\n", addr4 = malloc(5000));
+	printf("malloc addr is: %x\n", addr5 = malloc(5000));
 }
 
 

@@ -29,7 +29,7 @@ struct ide_t{
 	u32 sect_num;
 };
 
-void waitdisk(void);
+int waitdisk(void);
 
 void swap_init();
 
@@ -41,7 +41,7 @@ void swap_read(u32 dst_page_addr, struct pte_t *pte);
 
 void swap_write(u32 src_page_addr, int sectno);
 
-void swap_in(struct mm_struct *mm, u32 fault_addr);
+void swap_in(struct mm_struct *mm, u32 fault_addr, u32 flags);
 
 void swap_out(struct mm_struct *mm, int n);
 

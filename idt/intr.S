@@ -20,6 +20,7 @@ my_push:
 	popl %esp
 //	addl $0x04, %esp
 
+proc_after:
 	popl %eax
 
 	movw %ax, %ds
@@ -33,8 +34,11 @@ my_push:
 
 	addl $0x08, %esp
 
-	iret
+	iret					//这里，如果内核态->用户态的话，那么iret会恢复ss和esp。否则会把他们留在内存中。
 
+.globl context_to_intr
+context_to_intr:		//此时esp还是指向着idtframe。
+	jmp proc_after
 
 .macro my_int_no_error 	arg1
 //.globl my_int_no_error_\arg1

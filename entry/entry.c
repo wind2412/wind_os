@@ -18,7 +18,8 @@
 #include <vmm.h>
 #include <swap.h>
 #include <malloc.h>
-
+#include <proc.h>
+#include <sched.h>
 
 //见ucore指导书：0～640KB是一开始空闲的，0~4kb全都当做页目录表，5~8,9~12,13~16,17~20kb当做页表（临时）（Linux0.11实现）
 __attribute__((section(".init.data"))) struct pde_t *pd  = (struct pde_t *)0x0000;
@@ -35,6 +36,10 @@ void init();
 __attribute__((section(".init.text"))) void kern_init()
 {
 	extern u8 kern_start[];
+//	memset(pd, 0, PAGE_SIZE);		//此处不能使用函数。只能用for循环了TAT
+	for(int i = 0; i < PAGE_SIZE/4; i ++){		//没想到0x0竟然是乱七八糟的脏数据......必须要清空，否则日后检查某个pde是否是0，因为是UB，没准是什么值，就会崩掉。
+		*((u32 *)pd + i) = 0;
+	}
 	//组建页目录表
 	pd[0].pt_addr = (u32)fst >> 12;
 	pd[0].os = 0;
@@ -84,8 +89,8 @@ void init()
 	vmm_init();
 	pic_init();
 	tss_init();
-	outb(0x21, 0x01);		//关了时钟中断......
-//	timer_intr_init();
+//	outb(0x21, 0x01);		//关了时钟中断......
+	timer_intr_init();
 	kbd_init();
 
 	switch_to_user_mode();		//分页在用户模式下会有问题。
@@ -98,5 +103,10 @@ void init()
 	test_malloc();
 	test_swap();
 
+	proc_init();
+//	schedule();
+
 	while(1);
 }
+
+
