@@ -35,7 +35,7 @@ int producer()
 		P(&empty);		//减掉一个empty格子。
 		P(&mutex);		//得到互斥锁
 		buffer += 1;
-		printf("producer produced a product! now there has %d products~\n", full.value);
+		printf("producer produced a product! now there has %d products~\n", buffer);
 		V(&mutex);		//释放互斥锁
 		V(&full);		//放掉一个full格子。
 	}
@@ -49,7 +49,7 @@ int consumer()
 		P(&full);		//消费一个full格子
 		P(&mutex);		//拿到互斥锁
 		buffer -= 1;
-		printf("consumer consumed a product! now there has %d products~\n", full.value);
+		printf("consumer consumed a product! now there has %d products~\n", buffer);
 		V(&mutex);		//释放互斥锁
 		V(&empty);		//放掉一个empty格子
 	}
