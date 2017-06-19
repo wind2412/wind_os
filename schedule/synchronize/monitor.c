@@ -33,14 +33,18 @@ void monitor_init(struct monitor_t *monitor, int cond_num)
 //即：把current挂起到资源等待队列，再从急等队列中唤醒一个。如果急等队列没有，那就从入口队列mutex唤醒一个。
 void wait(struct condition_t *cond)
 {
+	printf("in pid %d, wait(&%s) begin: cond->x_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->x_count);
 	cond->x_count ++;		//current将会因为资源不足而放置到cond->wait_queue中。因而数目+1.
 	if(cond->monitor->next_count > 0){		//急等队列上边有，就唤醒急等队列中第一个pcb进入管程
 		V(&cond->monitor->next);
 	}else{									//否则放一个mutex的入口队列中的pcb进入管程
 		V(&cond->monitor->mutex);
+		printf("give out %s's mutex......\n", (current->pid == 2)?"CONSUMER":"PRODUCER");
 	}
 	P(&cond->x_sem);		//沉睡current并且schedule()。因为schedule()在P()中，因此这句话必须放在后边，而不能放在cond->x_count++的直接后边，而是必须要等待下一个进入管程的进程被设置好唤醒pcb->state。即V()执行之后。
 	cond->x_count --;		//当被condition::signal()由于资源足够而唤醒之后，再次被schedule()之后会切换到此进程，从这句醒来。所以不需要再等待了。从队列中删除即可。
+	printf("in pid %d, wait(&%s) end: cond->x_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->x_count);
+	print_thread_chains();		//delete.
 }
 
 /**
@@ -54,6 +58,7 @@ void wait(struct condition_t *cond)
 //即：把资源等待队列中的一个pcb唤醒，再把current抢占并挂起到急等队列。
 void signal(struct condition_t *cond)
 {
+	printf("in pid %d, signal(&%s) begin: cond->x_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->x_count);
 	if(cond->x_count > 0){
 		cond->monitor->next_count ++;		//将要把current抢占并塞进急等队列中去了。
 		V(&cond->x_sem);		//由于资源足够，唤醒cond的wait_queue中的一个pcb。
@@ -62,6 +67,7 @@ void signal(struct condition_t *cond)
 	}else{
 				//空操作
 	}
+	printf("in pid %d, signal(&%s) end: cond->x_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->x_count);
 }
 
 /**
@@ -70,7 +76,9 @@ void signal(struct condition_t *cond)
 //struct monitor 内部的enter函数
 void enter(struct monitor_t *monitor)
 {
+	printf("%s begin enterring into monitor and get mutex......\n", (current->pid == 2)?"CONSUMER":"PRODUCER");
 	P(&monitor->mutex);		//进入管程的时候，先抓取互斥锁！
+	printf("%s enter monitor success......\n", (current->pid == 2)?"CONSUMER":"PRODUCER");
 }
 
 /**
@@ -79,10 +87,12 @@ void enter(struct monitor_t *monitor)
 //struct monitor 内部的leave函数
 void leave(struct monitor_t *monitor)
 {
+	printf("%s begin leaving monitor and monitor->next_count = %d......\n", (current->pid == 2)?"CONSUMER":"PRODUCER", monitor->next_count);
 	//代码和cond::wait()中的一部分差不多。
 	if(monitor->next_count > 0){	//即将退出monitor管程的时候，检查是否急等队列里边还有pcb
 		V(&monitor->next);			//有的话，激活pcb
 	}else{
 		V(&monitor->mutex);			//没有的话，释放mutex。让入口队列的pcb进入管程。
 	}
+	printf("%s leave monitor success......\n", (current->pid == 2)?"CONSUMER":"PRODUCER");
 }

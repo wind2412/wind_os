@@ -105,6 +105,7 @@ int recycle_child(struct pcb_t *child)
 	//free stack
 	free_page(la_addr_to_pg(child->start_stack - PAGE_SIZE * KTHREAD_STACK_PAGE), KTHREAD_STACK_PAGE);
 	//free pcb
+	list_delete(&child->node);
 	free(child);
 	return 0;
 }
@@ -476,5 +477,18 @@ void run_thread(struct pcb_t *pcb)
 	//2.设置页目录表
 	asm volatile ("movl %0, %%cr3"::"r"(pcb->backup_pde));
 	//3.切换进程上下文
+	printf("switch to pid %d, now eip: %x, esp: %x\n", current->pid, current->context.eip, current->context.esp);
 	switch_to(&prev->context, &current->context);
+}
+
+void print_thread_chains()
+{
+	struct list_node *begin = proc_list.prev;		//其实pcb块是倒着放的。。。所以要从prev索引.....
+	printf("in pid %d:",current->pid);
+	while(begin != &proc_list){
+		struct pcb_t *pcb = GET_OUTER_STRUCT_PTR(begin, struct pcb_t, node);
+		printf("pid %d, status %d. || ", pcb->pid, pcb->state);
+		begin = begin->prev;
+	}
+	printf("\n");
 }

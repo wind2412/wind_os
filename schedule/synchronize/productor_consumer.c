@@ -77,15 +77,28 @@ void test_monitor()
 
 	monitor_init(&monitor, 2);			//初始化2个条件变量cv	=>	对应producer&&consumer
 
-	kernel_thread(producer_monitor, NULL, 0);
 	kernel_thread(consumer_monitor, NULL, 0);
+	kernel_thread(producer_monitor, NULL, 0);
 }
+
+//int wrong_num = -1;
 
 int producer_monitor()
 {
 	while(1){
 		enter(&monitor);		//current进入管程
-		if(buffer_m == 5)		wait(&PRODUCER);		//buffer为满，对生产者而言，“资源不足”，沉睡生产者。(对于生产者而言，buffer不满才是资源足够的条件)
+		print_thread_chains();
+		while(buffer_m == 5){
+//			wrong_num ++;			//看来，真的会执行两次以上.......卧槽！！！
+//			if(wrong_num == 1)	panic("[[[unexpectedly did two times????]]]\n");
+//			else	printf("now wrong_num is: %d\n", wrong_num);
+			printf("now buffer_m = %d....\n", buffer_m);
+			wait(&PRODUCER);		//buffer为满，对生产者而言，“资源不足”，沉睡生产者。(对于生产者而言，buffer不满才是资源足够的条件)
+		}
+//		wrong_num = -1;
+								/**
+								 * 这里！！改成了while之后，消除了各种变成buffer_m变成6+的问题....为啥???在ucore同样的代码是没有问题的...即便不改成while......
+								 */
 		buffer_m += 1;
 		printf("producer produced a product! now there has %d products~\n", buffer_m);
 		if(buffer_m == 1)		signal(&CONSUMER);		//当buffer从空变成非空之后，资源已经足够，唤醒沉睡的消费者
@@ -98,7 +111,8 @@ int consumer_monitor()
 {
 	while(1){
 		enter(&monitor);		//current进入管程
-		if(buffer_m == 0)		wait(&CONSUMER);		//buffer为空，资源不足，沉睡消费者
+		print_thread_chains();
+		while(buffer_m == 0)		wait(&CONSUMER);		//buffer为空，资源不足，沉睡消费者
 		buffer_m -= 1;
 		printf("consumer consumed a product! now there has %d products~\n", buffer_m);
 		if(buffer_m == 4)		signal(&PRODUCER);		//当buffer变得不再满的时候，资源已经足够，唤醒沉睡的生产者（为什么要等到是4的时候才唤醒，因为只有-1之前buffer是5，才有可能wait(&PRODUCER).这时再执行signal就没有问题。

@@ -120,4 +120,7 @@ extern void schedule();
 
 void run_thread();
 
+//调试：打印所有进程状态
+void print_thread_chains();
+
 #endif /* INCLUDE_PROC_H_ */

@@ -14,6 +14,7 @@
  * Extra Reference：
  * https://wenku.baidu.com/view/3cf2e85c195f312b3069a57d.html	管程的概念及实现	这个非常好！！！
  * https://www.zhihu.com/question/30641734						《应该如何理解管程》
+ * http://blog.forec.cn/2016/11/24/os-concepts-6/				管程的实现
  */
 
 /**
