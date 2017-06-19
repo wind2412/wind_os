@@ -10,11 +10,21 @@
 
 #include <semaphore.h>
 
-int producer();
+/********** using semaphore ************/
 
-int consumer();
+int producer_semaphore();
+
+int consumer_semaphore();
 
 void test_semaphore();
+
+/********** using monitor **************/
+
+int producer_monitor();
+
+int consumer_monitor();
+
+void test_monitor();
 
 
 #endif /* SCHEDULE_SYNCHRONIZE_PRODUCTOR_CONSUMER_H_ */

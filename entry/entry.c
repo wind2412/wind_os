@@ -106,7 +106,8 @@ void init()
 
 	proc_init();
 
-	test_semaphore();
+//	test_semaphore();		//测试semaphore
+	test_monitor();			//测试monitor
 
 	while(1);
 }
