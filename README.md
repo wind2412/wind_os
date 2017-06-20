@@ -13,21 +13,27 @@ ATTENTION:
     
     This kernel doesn't has a file system. It is really simple for os learning.
 
+
 To make it, please:
    
     `git clone https://github.com/wind2412/wind_os.git`
 
-a. if you are on i386 linux, please delete the `Makefile`'s all prefix `i386-elf-`.
+
+a. if you are on i386 linux, please delete the `Makefile`'s all prefix `i386-elf-`, and run `make && make qemu` is okay.
     
-    and run `make && make qemu` is okay.
-    
+
 b. if you are on mac OS, please install i386 tool chains first.
     
     `brew tap wind2412/homebrew-gcc_cross_compilers`
-    `brew install i386-elf-binutils`
+   
+    `brew install i386-elf-binutils`
+    
     `brew install i386-elf-gcc`
-    `brew install i386-elf-gdb`
-    `make all && make qemu`
+    
+    `brew install i386-elf-gdb`
+    
+    `make all && make qemu`
+
 is okay.
 
 Enjoy~
