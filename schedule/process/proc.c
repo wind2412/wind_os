@@ -23,15 +23,18 @@ u32 read_eflags()
 	return eflags;
 }
 
-void atom_disable_intr()
+int atom_disable_intr()
 {
 	if((read_eflags() & 0x200) != 0){		//此时eflags设定允许了中断。
 		cli();		//关中断
+		return 1;
 	}
+	return 0;
 }
-void atom_enable_intr()
+void atom_enable_intr(int flag)
 {
-	sti();
+	if(flag)
+		sti();
 }
 
 /***************位图的pid处理*******************/
@@ -241,7 +244,7 @@ int do_fork(u32 flags, u32 stack_offset, struct idtframe *frame)		//这个do_for
 
 void do_exit(int errorCode)
 {
-	atom_disable_intr();		//一定要关闭中断啊！！要不这里会变得诡异了。时钟中断的插入会很有意思的......
+	int flag = atom_disable_intr();		//一定要关闭中断啊！！要不这里会变得诡异了。时钟中断的插入会很有意思的......
 	{
 		printf("process %d finished. \n", current->pid);
 		printf("=======================\n");
@@ -249,7 +252,7 @@ void do_exit(int errorCode)
 		current->state = TASK_ZOMBIE;
 		send_chld_to_init();
 	}
-	atom_enable_intr();
+	atom_enable_intr(flag);
 	schedule();		//换走咯！
 	panic("hahaha!!exit!!\n");		//不会执行。
 }

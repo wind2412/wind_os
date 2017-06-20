@@ -60,8 +60,8 @@ struct pcb_t{
 
 /****************中断的处理(atomic)*************/
 u32 read_eflags();
-void atom_disable_intr();
-void atom_enable_intr();
+int atom_disable_intr();
+void atom_enable_intr(int flag);
 
 /***************位图的pid处理*******************/
 inline __attribute__((always_inline)) void set_bit(u32 *num, int pos, int is_set_one){		//把一个32bit的u32整数某位置位为0/1  	//注意这个pos是从右=>左，从0开始的。

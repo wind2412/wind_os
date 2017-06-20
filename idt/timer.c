@@ -24,5 +24,6 @@ void timer_handler(struct idtframe *frame)
 {
 	jiffies ++;
 //	printf("now it is %d intr.\n", jiffies);
+	printf("timer schedule!!!\n");
 	schedule();		//切换进程
 }

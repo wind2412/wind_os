@@ -10,7 +10,7 @@
 
 void schedule()
 {
-	atom_disable_intr();			//千万要加上中断！！！要不然如果在schedule中触发timer_intr，就会又一次schedule现象。。如果原先的第一个schedule后来变成了sleep，那么第二个schedule返回的时候，就会run一个sleep的进程！！！血和泪的教训啊！！！调了两天了！！！
+	int flag = atom_disable_intr();			//千万要加上中断！！！要不然如果在schedule中触发timer_intr，就会又一次schedule现象。。如果原先的第一个schedule后来变成了sleep，那么第二个schedule返回的时候，就会run一个sleep的进程！！！血和泪的教训啊！！！调了两天了！！！
 	{
 		if(current == NULL)	return;		//时钟中断如果在进程未初始化的时候就sched，就会崩溃
 		struct list_node *begin, *next;
@@ -39,5 +39,5 @@ void schedule()
 			run_thread(idle);
 		}
 	}
-	atom_enable_intr();
+	atom_enable_intr(flag);
 }
