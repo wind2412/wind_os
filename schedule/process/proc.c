@@ -486,12 +486,24 @@ void run_thread(struct pcb_t *pcb)
 
 void print_thread_chains()
 {
+	int flag = atom_disable_intr();		//delete. 为了关时钟中断，调试并panic。
 	struct list_node *begin = proc_list.prev;		//其实pcb块是倒着放的。。。所以要从prev索引.....
 	printf("in pid %d:",current->pid);
+	int proc1state = 0;
 	while(begin != &proc_list){
 		struct pcb_t *pcb = GET_OUTER_STRUCT_PTR(begin, struct pcb_t, node);
 		printf("pid %d, status %d. || ", pcb->pid, pcb->state);
+		if(pcb->pid == 1){
+			proc1state = pcb->state;
+		}else if(pcb->pid == 2){
+			if(pcb->state == TASK_SLEEPING && proc1state == TASK_SLEEPING){
+//				panic("panic: wrong happened!\n");
+				printf("panic: wrong happened!\n");
+				while(1);
+			}
+		}
 		begin = begin->prev;
 	}
 	printf("\n");
+	atom_enable_intr(flag);
 }

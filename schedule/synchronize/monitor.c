@@ -33,7 +33,7 @@ void monitor_init(struct monitor_t *monitor, int cond_num)
 //即：把current挂起到资源等待队列，再从急等队列中唤醒一个。如果急等队列没有，那就从入口队列mutex唤醒一个。
 void wait(struct condition_t *cond)
 {
-	printf("in pid %d, wait(&%s) begin: cond->x_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->x_count);
+	printf("in pid %d, wait(&%s) begin: cond->monitor->next_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->monitor->next_count);
 	cond->x_count ++;		//current将会因为资源不足而放置到cond->wait_queue中。因而数目+1.
 	if(cond->monitor->next_count > 0){		//急等队列上边有，就唤醒急等队列中第一个pcb进入管程
 		V(&cond->monitor->next);
@@ -43,7 +43,7 @@ void wait(struct condition_t *cond)
 	}
 	P(&cond->x_sem);		//沉睡current并且schedule()。因为schedule()在P()中，因此这句话必须放在后边，而不能放在cond->x_count++的直接后边，而是必须要等待下一个进入管程的进程被设置好唤醒pcb->state。即V()执行之后。
 	cond->x_count --;		//当被condition::signal()由于资源足够而唤醒之后，再次被schedule()之后会切换到此进程，从这句醒来。所以不需要再等待了。从队列中删除即可。
-	printf("in pid %d, wait(&%s) end: cond->x_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->x_count);
+	printf("in pid %d, wait(&%s) end: cond->monitor->next_count = %d.\n", current->pid, (cond - cond->monitor->cvs == 0) ? "PRODUCER" : "CONSUMER", cond->monitor->next_count);
 	print_thread_chains();		//delete.
 }
 

@@ -86,6 +86,7 @@ void test_monitor()
 int producer_monitor()
 {
 	while(1){
+		int flag = atom_disable_intr();
 		enter(&monitor);		//current进入管程
 		print_thread_chains();
 		while(buffer_m == 5){
@@ -101,15 +102,18 @@ int producer_monitor()
 								 */
 		buffer_m += 1;
 		printf("producer produced a product! now there has %d products~\n", buffer_m);
-		if(buffer_m == 1)		signal(&CONSUMER);		//当buffer从空变成非空之后，资源已经足够，唤醒沉睡的消费者
+		if(buffer_m == 1)		signal(&CONSUMER);		//当buffer从空变成非空之后，资源已经足够，唤醒沉睡的消费者		//卧槽！！不要忘了即使是signal里边也有P()！！可以sleep producer进程!!!
 		leave(&monitor);		//current退出管程
+		atom_enable_intr(flag);
 	}
+
 	return 0;
 }
 
 int consumer_monitor()
 {
 	while(1){
+		int flag = atom_disable_intr();
 		enter(&monitor);		//current进入管程
 		print_thread_chains();
 		while(buffer_m == 0)		wait(&CONSUMER);		//buffer为空，资源不足，沉睡消费者
@@ -117,6 +121,7 @@ int consumer_monitor()
 		printf("consumer consumed a product! now there has %d products~\n", buffer_m);
 		if(buffer_m == 4)		signal(&PRODUCER);		//当buffer变得不再满的时候，资源已经足够，唤醒沉睡的生产者（为什么要等到是4的时候才唤醒，因为只有-1之前buffer是5，才有可能wait(&PRODUCER).这时再执行signal就没有问题。
 		leave(&monitor);		//current退出管程
+		atom_enable_intr(flag);
 	}
 	return 0;
 }

@@ -13,6 +13,8 @@ void semaphore_init(struct semaphore_t *s, int value)
 	list_init(&s->queue);
 }
 
+int prev_pcb_state = -1;
+
 void P(struct semaphore_t *s)
 {
 	int flag = atom_disable_intr();
@@ -23,7 +25,12 @@ void P(struct semaphore_t *s)
 			//我们这里没有block，因此只能使用schedule来进行调度，其实也是一样。
 			if(current->pid == 2)	printf("CONSUMER sleep.\n");		//delete
 			else					printf("PRODUCER sleep.\n");		//delete
+			printf("prev state: %d\n", prev_pcb_state);
+//			if(prev_pcb_state == 0 && current->pid == 2){	//卧槽，为啥是0啊？？？TASK_READY？？？
+				printf("pid %d change to TASK_SLEEPING!\n",current->pid);
+//			}
 			current->state = TASK_SLEEPING;		//只有通过V()才能继续调度
+				printf("now current->state is %s!\n",(current->state == TASK_SLEEPING)?"TASK_SLEEPING":"TASK_RUNNING");
 			schedule();
 		}else{
 									//空操作

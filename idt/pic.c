@@ -38,5 +38,6 @@ void sti()
 
 void cli()
 {
-	asm volatile ("sti");
+//	asm volatile ("sti");		//妈的！！！气死我了FUUUUUUUUKKKKKKKKKKKKKKKK！！！！！！！！！！两天时间啊！！！！
+	asm volatile ("cli");
 }
