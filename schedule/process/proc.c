@@ -172,11 +172,11 @@ void proc_init()
 
 	proc_num ++;
 
-	if((kernel_thread(fn_init_kern_thread, NULL, 0)) == -1){		//创建一个进程1，init进程。init进程里边还会再创建一个进程2.作为用户进程的“躯体”
-		panic("can't init_proc proc 1... wrong.\n");
-	}
-
-	init_proc = GET_OUTER_STRUCT_PTR(proc_list.next, struct pcb_t, node);
+//	if((kernel_thread(fn_init_kern_thread, NULL, 0)) == -1){		//创建一个进程1，init进程。init进程里边还会再创建一个进程2.作为用户进程的“躯体”
+//		panic("can't init_proc proc 1... wrong.\n");
+//	}
+//
+//	init_proc = GET_OUTER_STRUCT_PTR(proc_list.next, struct pcb_t, node);
 
 }
 
@@ -204,7 +204,7 @@ int do_fork(u32 flags, u32 stack_offset, struct idtframe *frame)		//这个do_for
 	if(pcb == NULL)		return -1;
 
 	//填充pcb
-	if(set_kthread_stack(pcb, stack_offset) == -1){
+	if(set_kthread_stack(pcb, stack_offset) == -1){		//这里，其实是设置进程的内核栈！！
 		free(pcb);
 		return -1;
 	};
@@ -473,7 +473,7 @@ void run_thread(struct pcb_t *pcb)
 	struct pcb_t *prev = current;
 	current = pcb;
 	//1.设置tss的ring0的esp0为内核线程栈的最高地址
-	tss0.esp0 = pcb->start_stack;
+	tss0.esp0 = pcb->start_stack;		//pcb->start_stack是do_fork所alloc的进程的【内核栈！】
 	//2.设置页目录表
 	asm volatile ("movl %0, %%cr3"::"r"(pcb->backup_pde));
 	//3.切换进程上下文

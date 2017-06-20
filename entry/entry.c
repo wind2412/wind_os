@@ -90,7 +90,7 @@ void init()
 	vmm_init();
 	pic_init();
 	tss_init();
-//	outb(0x21, 0x01);		//关了时钟中断......
+	outb(0x21, 0x01);		//关了时钟中断......
 	timer_intr_init();
 	kbd_init();
 
@@ -106,8 +106,9 @@ void init()
 
 	proc_init();
 
-	test_semaphore();		//测试semaphore
-//	test_monitor();			//测试monitor		failed!!
+//	test_semaphore();		//测试semaphore
+	test_monitor();			//测试monitor		failed!!
+	schedule();
 
 	while(1);
 }

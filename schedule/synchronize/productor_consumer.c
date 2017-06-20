@@ -77,8 +77,8 @@ void test_monitor()
 
 	monitor_init(&monitor, 2);			//初始化2个条件变量cv	=>	对应producer&&consumer
 
-	kernel_thread(consumer_monitor, NULL, 0);
 	kernel_thread(producer_monitor, NULL, 0);
+	kernel_thread(consumer_monitor, NULL, 0);
 }
 
 //int wrong_num = -1;
