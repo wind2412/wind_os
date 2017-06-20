@@ -22,8 +22,10 @@ void timer_intr_init()
 
 void timer_handler(struct idtframe *frame)
 {
+	int flag = atom_disable_intr();
 	jiffies ++;
 //	printf("now it is %d intr.\n", jiffies);
 	printf("timer schedule!!!\n");
-	schedule();		//切换进程
+	schedule();		//切换进程		//最后的bug：问题就出现在这个schedule的上面！！！！！！删掉就没事了！！！
+	atom_enable_intr(flag);
 }
