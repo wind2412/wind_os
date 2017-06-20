@@ -30,21 +30,10 @@ void schedule()
 		}
 		//循环退出有两种情况：1.一个符合TASK_RUNNABLE都没有找到而退出 2.找到而退出
 		if(target_pcb != NULL && target_pcb->state == TASK_RUNNABLE){
-			print_thread_chains();		//delete
 			printf("will sched to pid: %d\n", target_pcb->pid);
-
-			extern int prev_pcb_state;
-			prev_pcb_state = current->state;
-			printf("prev..state: %d\n", prev_pcb_state);
-
 			run_thread(target_pcb);
 		}else{
-			print_thread_chains();		//delete
 			printf("will sched to pid: 0, idle_proc!\n");
-
-			extern int prev_pcb_state;
-			prev_pcb_state = current->state;
-
 			run_thread(idle);
 		}
 	}

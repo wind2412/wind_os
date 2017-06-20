@@ -50,4 +50,6 @@ void enter(struct monitor_t *monitor);		//current进入管程。
 
 void leave(struct monitor_t *monitor);		//current退出管程。
 
+
+
 #endif /* SCHEDULE_SYNCHRONIZE_MONITOR_H_ */

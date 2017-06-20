@@ -39,5 +39,7 @@ void sti()
 void cli()
 {
 //	asm volatile ("sti");		//妈的！！！气死我了FUUUUUUUUKKKKKKKKKKKKKKKK！！！！！！！！！！两天时间啊！！！！
+								//如果不关闭中断(原子)的话，后边各种问题.....唉  好在最终还发现了。
+								//然而发现最终bug竟然特么是这个，一点成就感都没有啊......
 	asm volatile ("cli");
 }
