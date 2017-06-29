@@ -36,12 +36,14 @@ void test_semaphore()
 int producer_semaphore()
 {
 	while(1){
-		P(&empty_s);		//减掉一个empty格子。
-		P(&mutex);		//得到互斥锁
-		buffer_s += 1;
-		printf("producer produced a product! now there has %d products~\n", buffer_s);
-		V(&mutex);		//释放互斥锁
-		V(&full_s);		//放掉一个full格子。
+//		P(&empty_s);		//减掉一个empty格子。
+		if(buffer_s < 5){				//果然如此。加上这个条件判断的话，就可以少用一个信号量了。
+			P(&mutex);		//得到互斥锁
+			buffer_s += 1;
+			printf("producer produced a product! now there has %d products~\n", buffer_s);
+			V(&mutex);		//释放互斥锁
+			V(&full_s);		//放掉一个full格子。
+		}
 	}
 	return 0;
 }
@@ -55,7 +57,7 @@ int consumer_semaphore()
 		buffer_s -= 1;
 		printf("consumer consumed a product! now there has %d products~\n", buffer_s);
 		V(&mutex);		//释放互斥锁
-		V(&empty_s);		//放掉一个empty格子
+//		V(&empty_s);		//放掉一个empty格子
 	}
 	return 0;
 }
