@@ -6,7 +6,7 @@ a simple os, no gui
 
 The bootloader is from XV6. OS designing thinking is from mostly ucore, little from linux 0.11 kernel. And hurley_os kernel helped a lot, on my os learing road.
 
-Thank for all of U !
+Thanks for all of U !
     
 This kernel doesn't has a file system. It is really simple for os learning.
 
