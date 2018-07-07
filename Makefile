@@ -6,7 +6,7 @@ CFLAGS := -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb
 # -fno-omit-frame-pointer： -fomit-frame-pointer参数是强制让所有的函数调用入栈的push ebp，push esp全部省略，因此无法回溯堆栈状况。所以-fno-参数就是取消这种强制性，使堆栈可以回溯。
 # -MD 每次编译.c文件时，都会生成.d文件保存类似于Makefile的生成依赖关系。
 # -fno-stack-protector：强制去掉堆栈保护。
-SFLAGS := -fno-pic -m32 -nostdinc -fno-builtin
+SFLAGS := -fno-pic --32 -nostdinc -fno-builtin
 LDFLAGS := -T ldscript.ld -m elf_i386 -nostdlib
 AS := i386-elf-as
 LD := i386-elf-ld
@@ -49,10 +49,10 @@ boot/bootmain.o : boot/bootmain.c
 	@$(GCC) $(CFLAGS) -c $< -o $@ #raw relocatable object file
 
 .s.o:
-	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.)
+	@$(AS) $(SFLAGS) $< -o $@              #raw relocatable object file (shan’t use ld.)
 
 .S.o:
-	@$(AS) $< -o $@              #raw relocatable object file (shan’t use ld.) 提示链接的时候缺少crt0.o，是因为用i386-elf-gcc编译造成。改用i386-elf-as编译就好了。不清楚为什么。
+	@$(AS) $(SFLAGS) $< -o $@              #raw relocatable object file (shan’t use ld.) 提示链接的时候缺少crt0.o，是因为用i386-elf-gcc编译造成。改用i386-elf-as编译就好了。不清楚为什么。
 
 bin/wind_os_kern: $(filter-out $(BOOT_EXCEPT), $(C_OBJ) $(S_OBJ))
 	$(LD) $(LDFLAGS) -o $@  $^

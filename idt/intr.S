@@ -1,8 +1,9 @@
 .text
 
 .globl my_push
+.code32
 my_push:
-	pusha				//详见idtframe结构体的说明。
+	pusha;				# 详见idtframe结构体的说明。
 	movw %ds, %ax
 	pushl %eax
 
@@ -11,14 +12,14 @@ my_push:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
-//	movw %ax, %ss
+#	movw %ax, %ss
 
 	pushl %esp
 
 	call trap
 
 	popl %esp
-//	addl $0x04, %esp
+#	addl $0x04, %esp
 
 proc_after:
 	popl %eax
@@ -27,21 +28,21 @@ proc_after:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
-//	movw %ax, %ss			//这句话在switch_kern_to_user会出bug！！因为这句话表明了把eax付给了ss做恢复。表面上是这样，但是要知道在kern->user中，只能由iret切换ss栈位置！
-							//之前就切换一定是错的！会导致诡异的错误。会蹦出新的错误中断。而且实际上没有这句话，整个系统也是运行的。因此删掉。留着实在是不智之举。
+#	movw %ax, %ss			# 这句话在switch_kern_to_user会出bug！！因为这句话表明了把eax付给了ss做恢复。表面上是这样，但是要知道在kern->user中，只能由iret切换ss栈位置！
+							# 之前就切换一定是错的！会导致诡异的错误。会蹦出新的错误中断。而且实际上没有这句话，整个系统也是运行的。因此删掉。留着实在是不智之举。
 
 	popa
 
 	addl $0x08, %esp
 
-	iret					//这里，如果内核态->用户态的话，那么iret会恢复ss和esp。否则会把他们留在内存中。
+	iret;					# 这里，如果内核态->用户态的话，那么iret会恢复ss和esp。否则会把他们留在内存中。
 
 .globl context_to_intr
-context_to_intr:		//此时esp还是指向着idtframe。
+context_to_intr:		# 此时esp还是指向着idtframe。
 	jmp proc_after
 
 .macro my_int_no_error 	arg1
-//.globl my_int_no_error_\arg1
+# .globl my_int_no_error_\arg1
 intr_\@:
 pushl $0
 pushl $\arg1
@@ -49,10 +50,10 @@ jmp my_push
 .endm
 
 .macro my_int_error		arg1
-//.globl my_int_error_arg1
-intr_\@:			//使用GAS  \@:生成全局标签。\@是gas内部macro的数量。 详见:http://www.coranac.com/files/gba/re-ejected-gasref.pdf
-					//以及：https://sourceware.org/binutils/docs/as/Macro.html#Macro
-pushl $\arg1		//千！！万！！别！！忘！！了！！加！！上！！$！！否则会反汇编为pushl 0x1，乍一看好像没问题...但是gas会把0x1地址的东西压进去，神坑啊！！
+#.globl my_int_error_arg1
+intr_\@:			#使用GAS  \@:生成全局标签。\@是gas内部macro的数量。 详见:http://www.coranac.com/files/gba/re-ejected-gasref.pdf
+					#以及：https://sourceware.org/binutils/docs/as/Macro.html#Macro
+pushl $\arg1		#千！！万！！别！！忘！！了！！加！！上！！$！！否则会反汇编为pushl 0x1，乍一看好像没问题...但是gas会把0x1地址的东西压进去，神坑啊！！
 jmp my_push
 .endm
 
